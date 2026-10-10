@@ -201,7 +201,7 @@ class H(http.server.BaseHTTPRequestHandler):
         except Exception: return self.send(400, {"error":"bad request"})
         if not db.execute("SELECT 1 FROM activities WHERE id=? AND active=1", (aid,)).fetchone():
             return self.send(404, {"error":"That activity isn't available."})
-        body = re.sub(r"<[^>]*>", "", str(b.get("body",""))); body = re.sub(r"\s+", " ", body).strip()[:200]
+        body = re.sub(r"<[^>]*>", "", str(b.get("body",""))); body = re.sub(r"\s+", " ", body).strip()[:500]
         if not body: return self.send(400, {"error":"Please write a few words first."})
         now = time.time()
         if db.execute("SELECT COUNT(*) FROM comments WHERE user_id=? AND created>?", (u[0], now-86400)).fetchone()[0] >= 20:

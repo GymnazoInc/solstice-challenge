@@ -2,7 +2,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0f1b3d">
 <title>Gymnazo Winter Solstice Challenge</title>
-<!-- ui-marker: solstice-ui-v2-midnight-sun comments-ui-v1 -->
+<!-- ui-marker: solstice-ui-v2-midnight-sun comments-ui-v1 comments-open-v2 -->
 <style>
 :root{--navy:#0f1b3d;--navy2:#16264f;--navy3:#1f3266;--deep:#0b1430;--gold:#e3b04b;--gold2:#f2cf7e;--cream:#f7efdf;--ink:#1a2547;--ice:#bcd6f2;--card:rgba(255,255,255,.07);--serif:'Fraunces',Georgia,'Times New Roman',serif;--sans:'Outfit',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -99,8 +99,8 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 .np{margin-top:8px;background:rgba(0,0,0,.18);border-radius:16px;padding:12px}
 .cm{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.1);font-size:18px}.cm .who{font-size:15px;color:var(--ice)}.cm .bd{margin:2px 0 6px;word-break:break-word}
 .cm .rx{display:flex;gap:8px;flex-wrap:wrap}.cm .rx button{width:auto;min-height:48px;padding:4px 14px;font-size:18px;background:rgba(255,255,255,.1);color:var(--cream);box-shadow:none}.cm .rx button.on{background:var(--gold);color:var(--navy)}.cm .rx button.del{background:transparent;color:var(--ice);font-size:15px;border:1.5px solid rgba(188,214,242,.4)}
-.cheers{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.cheers button{width:auto;flex:1 1 45%;min-height:56px;font-size:16px;padding:6px 10px;background:rgba(227,176,75,.2);color:var(--cream);border:1.5px solid rgba(227,176,75,.6);box-shadow:none}
-.np textarea{background:#fff;color:var(--ink);font-size:19px;min-height:72px}
+.cheers{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.cheers button{width:auto;flex:1 1 45%;min-height:52px;font-size:15px;padding:6px 10px;background:rgba(227,176,75,.2);color:var(--cream);border:1.5px solid rgba(227,176,75,.6);box-shadow:none}
+.np textarea{background:#fff;color:var(--ink);font-size:20px;min-height:130px}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style></head><body>
 <div class="stars"></div><canvas id="snow"></canvas><canvas id="confetti"></canvas><div id="toast" role="status" aria-live="polite"></div>
@@ -243,13 +243,15 @@ function drawNotes(id){const el=$('np'+id);if(!el)return;const C=COM[id];if(!C){
  const keep=el.querySelector('textarea');if(keep)DRAFT[id]=keep.value;
  el.innerHTML=(C.comments.length?C.comments.map(c=>`<div class="cm"><div class="who">${esc(c.name)}${c.mine?' (you)':''} · ${ago(c.at)}</div><div class="bd">${esc(c.body)}</div><div class="rx"><button data-rx="${c.id}" data-k="heart" class="${(c.myReactions||[]).includes('heart')?'on':''}" aria-label="Heart">❤️ ${c.hearts||''}</button><button data-rx="${c.id}" data-k="thumb" class="${(c.myReactions||[]).includes('thumb')?'on':''}" aria-label="Thumbs up">👍 ${c.thumbs||''}</button>${c.mine?`<button class="del" data-cd="${c.id}">Delete my note</button>`:''}</div></div>`).join(''):'<p class="small">No notes yet. Be the first to cheer someone on!</p>')
  +(C.comments.length<C.total?`<button class="ghost" data-more="${id}" style="margin:8px 0;color:var(--cream)">Show more</button>`:'')
- +`<div class="cheers">${CHEERS.map((t,i)=>`<button data-ch="${id}" data-i="${i}">${esc(t)}</button>`).join('')}</div><textarea maxlength="200" rows="2" placeholder="Write a few kind words (optional)" aria-label="Your note">${esc(DRAFT[id]||'')}</textarea><button class="gold" data-send="${id}">Add encouragement</button><div class="err" id="ne${id}" role="alert"></div>`;
+ +`<textarea class="ntx" maxlength="500" rows="4" placeholder="Share a thought, a win, or some encouragement..." aria-label="Your note">${esc(DRAFT[id]||'')}</textarea><div class="small hint" id="nh${id}" style="min-height:1.3em"></div><button class="gold" data-send="${id}" style="min-height:64px;font-size:22px">Add encouragement</button><div class="small" style="margin-top:10px">Need a starter idea? Tap one to fill the box:</div><div class="cheers">${CHEERS.map((t,i)=>`<button data-ch="${id}" data-i="${i}">${esc(t)}</button>`).join('')}</div><div class="err" id="ne${id}" role="alert"></div>`;
  el.querySelectorAll('[data-rx]').forEach(b=>b.onclick=async()=>{const {ok,j}=await api('/api/comments/react',{id:+b.dataset.rx,kind:b.dataset.k});if(ok){setCom(id,j,true);drawNotes(id)}});
  el.querySelectorAll('[data-cd]').forEach(b=>b.onclick=async()=>{const {ok,j}=await api('/api/comments/delete',{id:+b.dataset.cd});if(ok){setCom(id,j,false);drawNotes(id);toast('Note deleted.')}});
  el.querySelectorAll('[data-more]').forEach(b=>b.onclick=async()=>{const {ok,j}=await api('/api/comments/list',{activity_id:id,offset:C.comments.length});if(ok){C.comments=C.comments.concat(j.comments);C.total=j.total;drawNotes(id)}});
- el.querySelectorAll('[data-ch]').forEach(b=>b.onclick=()=>postNote(id,CHEERS[+b.dataset.i]));
- el.querySelector('[data-send]').onclick=()=>postNote(id,el.querySelector('textarea').value)}
-async function postNote(id,body){const e=$('ne'+id);if(e)e.textContent='';if(!String(body).trim()){if(e)e.textContent='Please write a few words first, or tap one of the buttons above.';return}
+ const ta=el.querySelector('textarea'),hint=()=>{const left=500-ta.value.length;$('nh'+id).textContent=left<=60?left+' characters left':'';DRAFT[id]=ta.value};
+ ta.oninput=hint;hint();
+ el.querySelectorAll('[data-ch]').forEach(b=>b.onclick=()=>{ta.value=CHEERS[+b.dataset.i];hint();ta.focus()});
+ el.querySelector('[data-send]').onclick=()=>postNote(id,ta.value)}
+async function postNote(id,body){const e=$('ne'+id);if(e)e.textContent='';if(!String(body).trim()){if(e)e.textContent='Please write a few words first.';return}
  const {ok,j}=await api('/api/comments',{activity_id:id,body});if(!ok){if(e)e.textContent=j.error||'Something went wrong. Please try again.';return}DRAFT[id]='';setCom(id,j,false);drawNotes(id);toast('Thank you for the encouragement! 💙')}
 let PK=new Set(),PKFIRST=false,PKSHOWN=false;
 function match(name,q){q=q.trim().toLowerCase();return !q||String(name).toLowerCase().indexOf(q)>-1}
