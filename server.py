@@ -26,6 +26,9 @@ if not db.execute("SELECT 1 FROM meta WHERE k='seeded'").fetchone():
         for i,(n,t,u) in enumerate([("Jumps",1000,"jumps"),("Minutes of Movement",100,"minutes"),("Squats",50,"squats")]):
             db.execute("INSERT INTO activities(name,target,unit,sort,active) VALUES(?,?,?,?,1)", (n,t,u,i))
     db.execute("INSERT OR REPLACE INTO meta VALUES('seeded','1')")
+if "phase" not in [r[1] for r in db.execute("PRAGMA table_info(activities)")]:
+    db.execute("ALTER TABLE activities ADD COLUMN phase INTEGER DEFAULT 0")
+PHASES = {"1":1,"capacity":1,"2":2,"acquire":2,"3":3,"practice":3}
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 ADMIN_FAILS = [0, 0.0]  # count, locked_until
 
@@ -61,10 +64,10 @@ def user_from(h):
 def activities_for(uid):
     out = []
     chosen = {r[0] for r in db.execute("SELECT activity_id FROM user_activities WHERE user_id=?", (uid,))}
-    for aid,name,target,unit in db.execute("SELECT id,name,target,unit FROM activities WHERE active=1 ORDER BY sort,id").fetchall():
+    for aid,name,target,unit,phase in db.execute("SELECT id,name,target,unit,COALESCE(phase,0) FROM activities WHERE active=1 ORDER BY sort,id").fetchall():
         tot = db.execute("SELECT COALESCE(SUM(amount),0) FROM progress WHERE user_id=? AND activity_id=?", (uid,aid)).fetchone()[0]
         tot = min(tot, target)
-        out.append({"id":aid,"name":name,"target":target,"unit":unit,"total":tot,"pct":int(tot*100//target) if target else 0,"done":tot>=target,"chosen":aid in chosen})
+        out.append({"id":aid,"name":name,"target":target,"unit":unit,"phase":phase,"total":tot,"pct":int(tot*100//target) if target else 0,"done":tot>=target,"chosen":aid in chosen})
     return out
 
 def me_payload(u):
@@ -212,8 +215,8 @@ class H(http.server.BaseHTTPRequestHandler):
             return self.send(401, {"error":"Wrong password."})
         ADMIN_FAILS[0] = 0
         def lst():
-            rows = db.execute("SELECT id,name,target,unit,sort,active FROM activities ORDER BY sort,id").fetchall()
-            return {"activities":[{"id":r[0],"name":r[1],"target":r[2],"unit":r[3],"sort":r[4],"active":bool(r[5]),
+            rows = db.execute("SELECT id,name,target,unit,sort,active,COALESCE(phase,0) FROM activities ORDER BY sort,id").fetchall()
+            return {"activities":[{"id":r[0],"name":r[1],"target":r[2],"unit":r[3],"sort":r[4],"active":bool(r[5]),"phase":r[6],
                     "finished":db.execute("SELECT COUNT(*) FROM (SELECT user_id FROM progress WHERE activity_id=? GROUP BY user_id HAVING SUM(amount)>=?)", (r[0],r[2])).fetchone()[0]} for r in rows]}
         if p == "/api/admin/list": return self.send(200, lst())
         if p == "/api/admin/save":
@@ -222,11 +225,14 @@ class H(http.server.BaseHTTPRequestHandler):
             except Exception: target = 0
             if not name or not unit or target < 1 or target > 1000000: return self.send(400, {"error":"Please give a name, a unit, and a target between 1 and 1,000,000."})
             active = 1 if b.get("active", True) else 0
+            try: phase = int(b.get("phase", 0))
+            except Exception: phase = 0
+            if phase not in (0,1,2,3): phase = 0
             if b.get("id"):
-                db.execute("UPDATE activities SET name=?,target=?,unit=?,active=? WHERE id=?", (name,target,unit,active,int(b["id"])))
+                db.execute("UPDATE activities SET name=?,target=?,unit=?,active=?,phase=? WHERE id=?", (name,target,unit,active,phase,int(b["id"])))
             else:
                 mx = db.execute("SELECT COALESCE(MAX(sort),-1)+1 FROM activities").fetchone()[0]
-                db.execute("INSERT INTO activities(name,target,unit,sort,active) VALUES(?,?,?,?,?)", (name,target,unit,mx,active))
+                db.execute("INSERT INTO activities(name,target,unit,sort,active,phase) VALUES(?,?,?,?,?,?)", (name,target,unit,mx,active,phase))
             return self.send(200, lst())
         if p == "/api/admin/bulk":
             text = str(b.get("text",""))[:100000]; dry = bool(b.get("dry"))
@@ -238,15 +244,18 @@ class H(http.server.BaseHTTPRequestHandler):
                 name = parts[0][:60]
                 try: target = int(parts[1].replace(",","")) if len(parts) > 1 else 0
                 except Exception: target = 0
-                if len(parts) > 3 or not name or target < 1 or target > 1000000:
+                ph = 0
+                if len(parts) > 3 and parts[3]:
+                    ph = PHASES.get(parts[3].casefold(), -1)
+                if len(parts) > 4 or ph < 0 or not name or target < 1 or target > 1000000:
                     bad.append({"line":n,"text":line.strip()[:80]}); continue
                 unit = (parts[2] if len(parts) > 2 and parts[2] else "times")[:30]
                 if name.casefold() in seen: skipped.append({"line":n,"name":name}); continue
-                seen.add(name.casefold()); added.append({"line":n,"name":name,"target":target,"unit":unit})
+                seen.add(name.casefold()); added.append({"line":n,"name":name,"target":target,"unit":unit,"phase":ph})
             if not dry:
                 for a in added:
                     mx = db.execute("SELECT COALESCE(MAX(sort),-1)+1 FROM activities").fetchone()[0]
-                    db.execute("INSERT INTO activities(name,target,unit,sort,active) VALUES(?,?,?,?,1)", (a["name"],a["target"],a["unit"],mx))
+                    db.execute("INSERT INTO activities(name,target,unit,sort,active,phase) VALUES(?,?,?,?,1,?)", (a["name"],a["target"],a["unit"],mx,a["phase"]))
             return self.send(200, {"dry":dry,"added":added,"skipped":skipped,"bad":bad, **lst()})
         if p == "/api/admin/reorder":
             ids = b.get("ids", [])
