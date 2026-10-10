@@ -74,6 +74,15 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 #toast{position:fixed;left:12px;right:12px;top:14px;max-width:560px;margin:0 auto;background:var(--gold);color:var(--navy);padding:20px;border-radius:20px;font-weight:700;text-align:center;z-index:30;display:none;font-size:24px;font-family:var(--serif);box-shadow:0 10px 30px rgba(0,0,0,.5)}
 #toast.show{display:block;animation:drop .5s cubic-bezier(.3,1.6,.5,1)}
 @keyframes drop{from{transform:translateY(-80px);opacity:0}}
+.act-card{background:rgba(255,255,255,.07);border:1.5px solid rgba(188,214,242,.3);border-radius:20px;padding:16px;margin:14px 0}
+.act-card.fin{border-color:var(--gold);background:rgba(227,176,75,.14)}
+.act-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}.act-top b{font-family:var(--serif);font-size:24px}.act-top span{font-size:28px;font-weight:700;color:var(--gold2)}
+.abar{height:26px;background:rgba(255,255,255,.14);border-radius:14px;overflow:hidden;margin:10px 0}.abar>i{display:block;height:100%;max-width:100%;background:linear-gradient(90deg,var(--ice),var(--gold));border-radius:14px;transition:width .8s cubic-bezier(.3,1.3,.5,1)}
+.amsg{font-family:var(--serif);font-style:italic;color:var(--gold2);font-size:20px;min-height:1.4em}
+.chips{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.chips button{min-height:60px;font-size:21px}
+.chips .full{grid-column:1/-1}
+.custom{display:flex;gap:8px;margin-top:10px}.custom input{margin:0;flex:1;min-width:0}.custom button{width:100px}.custom input{font-size:19px;padding:8px 12px}
+.lb .s .a{display:block}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style></head><body>
 <div class="stars"></div><canvas id="snow"></canvas><canvas id="confetti"></canvas><div id="toast" role="status" aria-live="polite"></div>
@@ -130,6 +139,7 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 <div style="flex:1"><div id="ptxt" style="font-weight:700;font-size:20px"></div><div class="bar"><i id="fill"></i></div><div class="small" id="enc" style="margin-top:8px"></div></div></div>
 <div class="stats"><div class="stat"><b><span class="flame" id="fl">🔥</span> <span id="cur">0</span></b><span class="small">days in a row</span></div><div class="stat"><b>⭐ <span id="lon">0</span></b><span class="small">best streak</span></div></div>
 </div>
+<div class="card" id="actcard"><h2>My Goals 🎯</h2><div class="small">Tap a button to add what you did. Made a mistake? Tap Undo.</div><div id="acts"></div></div>
 <div class="card"><h2>My Calendar</h2><div class="small">Gold = done. Tap a day to fill it in.</div><div class="grid" id="grid"></div></div>
 <div class="card"><h2>My Badges</h2><div class="badges" id="badges"></div></div>
 </div>
@@ -176,8 +186,29 @@ function render(){
   g+=`<button data-d="${iso}" aria-label="${fmt(iso)}" class="${iso in ME.days?'on':''} ${iso>t?'fut':''} ${iso===SEL?'sel':''} ${iso===t?'today':''}">${d.getMonth()+1}/${d.getDate()}</button>`}
  $('grid').innerHTML=g;
  $('grid').querySelectorAll('button').forEach(b=>b.onclick=()=>{if(b.dataset.d<=t){SEL=b.dataset.d;render();$('checkcard').scrollIntoView({behavior:RM?'auto':'smooth'})}});
+ renderActs();
  $('badges').innerHTML=ME.milestones.map(m=>{const got=ME.badges.includes(m.n);return `<div class="badge ${got?'got':''}"><span class="ic">${got?(ICONS[m.n]||'🏅'):'🔒'}</span>${esc(m.label)}</div>`}).join('');
 }
+const ACTMSG=[[100,'🏆 Finished! Amazing work!'],[75,'🔥 75% done. Almost there!'],[50,'⭐ Halfway there. Keep going!'],[25,'❄️ 25% done. Great start!']];
+function actMsg(p){const m=ACTMSG.find(x=>p>=x[0]);return m?m[1]:'Tap a button to begin.'}
+function nf(n){return Number(n).toLocaleString()}
+function renderActs(){const A=ME.activities||[];$('actcard').classList.toggle('hide',!A.length);
+ const open={};document.querySelectorAll('.cin').forEach(i=>open[i.dataset.id]=i.value);
+ $('acts').innerHTML=A.map(a=>{const c1=Math.max(1,Math.round(a.target*.1)),c2=Math.max(1,Math.round(a.target*.25));
+  return `<div class="act-card ${a.done?'fin':''}"><div class="act-top"><b>${esc(a.name)}</b><span>${a.pct}%</span></div>
+  <div class="small" style="font-size:19px">${nf(a.total)} of ${nf(a.target)} ${esc(a.unit)}</div>
+  <div class="abar" role="progressbar" aria-valuenow="${a.pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${Math.min(100,a.pct)}%"></i></div>
+  <div class="amsg">${actMsg(a.pct)}</div>
+  ${a.done?'':`<div class="chips"><button class="gold" data-add="${a.id}" data-n="${c1}">+${nf(c1)}</button><button class="gold" data-add="${a.id}" data-n="${c2}">+${nf(c2)}</button></div>
+  <div class="custom"><input class="cin" data-id="${a.id}" type="tel" inputmode="numeric" placeholder="Type a number" value="${esc(open[a.id]||'')}" aria-label="Amount of ${esc(a.unit)}"><button data-addc="${a.id}">Add</button></div>`}
+  <button class="ghost" data-undo="${a.id}" style="margin-top:10px;min-height:56px">↩ Undo last</button><div class="err" id="aerr${a.id}" role="alert"></div></div>`}).join('');
+ document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>logAct(+b.dataset.add,+b.dataset.n));
+ document.querySelectorAll('[data-addc]').forEach(b=>b.onclick=()=>{const i=document.querySelector('.cin[data-id="'+b.dataset.addc+'"]');logAct(+b.dataset.addc,parseInt(i.value.replace(/[^0-9]/g,''),10))});
+ document.querySelectorAll('[data-undo]').forEach(b=>b.onclick=()=>undoAct(+b.dataset.undo))}
+async function logAct(id,n){const e=$('aerr'+id);if(!(n>0)){e.textContent='Please type a number first.';return}const before=ME.activities.find(a=>a.id===id).pct;
+ const {ok,j}=await api('/api/progress',{activity_id:id,amount:n});if(!ok){e.textContent=j.error||'Something went wrong. Please try again.';return}ME=j;renderActs();const a=ME.activities.find(x=>x.id===id);
+ const hit=[100,75,50,25].find(t=>before<t&&a.pct>=t);if(hit){toast(actMsg(hit));confetti(hit===100?300:120)}else toast('Added +'+nf(j.added)+' '+a.unit+' ✔');lb()}
+async function undoAct(id){const e=$('aerr'+id);const {ok,j}=await api('/api/progress/undo',{activity_id:id});if(!ok){e.textContent=j.error||'Nothing to undo.';return}ME=j;renderActs();toast('Last entry removed.');lb()}
 async function wins(){const {j}=await api('/api/wins');$('wins').innerHTML=(j.wins&&j.wins.length)?`<div style="margin-bottom:6px">${j.members} members taking part</div>`+j.wins.map(w=>`<div class="win">🏅 <b>${esc(w.name)}</b> — ${esc(w.label)} <span class="small">· ${new Date(w.at*1000).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span></div>`).join(''):'No wins yet. Be the first! 🌟'}
 let tt;function toast(m){const t=$('toast');t.textContent=m;t.className='show';clearTimeout(tt);tt=setTimeout(()=>t.className='',4000)}
 $('go').onclick=async()=>{$('lerr').textContent='';const {ok,j}=await api(MODE==='new'?'/api/register':'/api/login',{name:$('name').value,pin:$('pin').value});if(!ok){$('lerr').textContent=j.error||'Something went wrong. Please try again.';return}ME=j;SEL=null;render();if(j.new){toast('Welcome, '+j.name+'! ❄️');confetti(80)}else toast('Welcome back, '+j.name+'! ☀️');};
@@ -192,7 +223,7 @@ function snow(){if(RM)return;const c=$('snow'),x=c.getContext('2d');let W,H;cons
  const F=[...Array(46)].map(()=>({x:Math.random()*W,y:Math.random()*H,r:1+Math.random()*2.6,v:.3+Math.random()*.8,a:Math.random()*6}));
  (function step(){x.clearRect(0,0,W,H);x.fillStyle='rgba(247,239,223,.75)';F.forEach(p=>{p.y+=p.v;p.x+=Math.sin(p.a+=.01)*.4;if(p.y>H+5){p.y=-5;p.x=Math.random()*W}x.beginPath();x.arc(p.x,p.y,p.r,0,6.3);x.fill()});if(!document.hidden)requestAnimationFrame(step);else setTimeout(step,500)})()}
 async function lb(){const {j}=await api('/api/leaderboard');if(!j.top||!j.top.length){$('lbt').textContent='No check-ins yet. Be the first on the board! 🌟';return}
- const row=r=>`<div class="lb ${r.me?'me':''} ${r.rank===1?'top1':''}"><span class="r">${r.rank<=3?['🥇','🥈','🥉'][r.rank-1]:r.rank}</span><span class="n">${esc(r.name)}${r.me?' (you)':''}</span><span class="s"><b>${r.done}</b> days<br>🔥 ${r.current} in a row</span></div>`;
+ const row=r=>`<div class="lb ${r.me?'me':''} ${r.rank===1?'top1':''}"><span class="r">${r.rank<=3?['🥇','🥈','🥉'][r.rank-1]:r.rank}</span><span class="n">${esc(r.name)}${r.me?' (you)':''}</span><span class="s"><b>${r.done}</b> days<br>🔥 ${r.current} in a row${r.acts?`<span class="a">🎯 ${r.acts} goal${r.acts>1?'s':''} done</span>`:''}</span></div>`;
  let h=j.top.map(row).join('');
  if(j.me&&j.me.rank>10)h+='<div class="small" style="text-align:center;margin:6px">· · ·</div>'+row(j.me);
  else if(!j.me&&ME)h+='<p class="small">Check in once to join the board!</p>';

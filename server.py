@@ -14,7 +14,19 @@ CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, name_key TEX
 CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY, user_id INTEGER, created REAL);
 CREATE TABLE IF NOT EXISTS checkins(user_id INTEGER, day TEXT, note TEXT, created REAL, PRIMARY KEY(user_id, day));
 CREATE TABLE IF NOT EXISTS wins(user_id INTEGER, milestone INTEGER, created REAL, PRIMARY KEY(user_id, milestone));
+CREATE TABLE IF NOT EXISTS activities(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, target INTEGER, unit TEXT, sort INTEGER DEFAULT 0, active INTEGER DEFAULT 1);
+CREATE TABLE IF NOT EXISTS progress(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, activity_id INTEGER, amount INTEGER, created REAL);
+CREATE INDEX IF NOT EXISTS progress_ua ON progress(user_id, activity_id);
+CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT);
 """)
+if not db.execute("SELECT 1 FROM meta WHERE k='seeded'").fetchone():
+    if db.execute("SELECT COUNT(*) FROM activities").fetchone()[0] == 0:
+        for i,(n,t,u) in enumerate([("Jumps",1000,"jumps"),("Minutes of Movement",100,"minutes"),("Squats",50,"squats")]):
+            db.execute("INSERT INTO activities(name,target,unit,sort,active) VALUES(?,?,?,?,1)", (n,t,u,i))
+    db.execute("INSERT OR REPLACE INTO meta VALUES('seeded','1')")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+ADMIN_FAILS = [0, 0.0]  # count, locked_until
+
 LOCK = __import__("threading").Lock()
 def today():
     o=os.environ.get('SOL_TEST_TODAY')
@@ -44,11 +56,20 @@ def user_from(h):
     r = db.execute("SELECT u.id,u.name FROM sessions s JOIN users u ON u.id=s.user_id WHERE token_hash=?", (th(m.group(1)),)).fetchone()
     return r
 
+def activities_for(uid):
+    out = []
+    for aid,name,target,unit in db.execute("SELECT id,name,target,unit FROM activities WHERE active=1 ORDER BY sort,id").fetchall():
+        tot = db.execute("SELECT COALESCE(SUM(amount),0) FROM progress WHERE user_id=? AND activity_id=?", (uid,aid)).fetchone()[0]
+        tot = min(tot, target)
+        out.append({"id":aid,"name":name,"target":target,"unit":unit,"total":tot,"pct":int(tot*100//target) if target else 0,"done":tot>=target})
+    return out
+
 def me_payload(u):
     s = stats(u[0])
+    acts = activities_for(u[0])
     wins = [r[0] for r in db.execute("SELECT milestone FROM wins WHERE user_id=? ORDER BY milestone",(u[0],))]
     return {"name":u[1], "today":today().isoformat(), "start":START.isoformat(), "end":END.isoformat(),
-            "total":TOTAL, "milestones":[{"n":n,"label":label(n)} for n in MILESTONES], "badges":wins, **s}
+            "total":TOTAL, "milestones":[{"n":n,"label":label(n)} for n in MILESTONES], "badges":wins, "activities":acts, "activitiesDone":sum(1 for a in acts if a["done"]), **s}
 
 class H(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -70,6 +91,8 @@ class H(http.server.BaseHTTPRequestHandler):
         p = self.path.split("?")[0]
         if p in ("/","/index.html"):
             return self.send(200, open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"index.html"),"rb").read(), "text/html; charset=utf-8")
+        if p == "/admin":
+            return self.send(200, open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"admin.html"),"rb").read(), "text/html; charset=utf-8")
         if p == "/api/me":
             u = user_from(self)
             return self.send(200, me_payload(u)) if u else self.send(401, {"error":"auth"})
@@ -82,11 +105,11 @@ class H(http.server.BaseHTTPRequestHandler):
             rows = []
             for uid,name in db.execute("SELECT id,name FROM users").fetchall():
                 st = stats(uid)
-                if st["done"]>0: rows.append({"id":uid,"name":name,"done":st["done"],"current":st["current"]})
+                if st["done"]>0: rows.append({"id":uid,"name":name,"done":st["done"],"current":st["current"],"acts":sum(1 for a in activities_for(uid) if a["done"])})
             rows.sort(key=lambda r:(-r["done"],-r["current"],r["name"].casefold()))
             for i,r in enumerate(rows): r["rank"]=i+1
             mine = next((r for r in rows if u and r["id"]==u[0]), None)
-            strip = lambda r:{"rank":r["rank"],"name":r["name"],"done":r["done"],"current":r["current"],"me":bool(u and r["id"]==u[0])}
+            strip = lambda r:{"rank":r["rank"],"name":r["name"],"done":r["done"],"current":r["current"],"acts":r["acts"],"me":bool(u and r["id"]==u[0])}
             return self.send(200, {"total":len(rows),"top":[strip(r) for r in rows[:10]],"me":strip(mine) if mine else None})
         self.send(404, {"error":"nf"})
     def do_POST(self):
@@ -98,8 +121,11 @@ class H(http.server.BaseHTTPRequestHandler):
                 m = re.search(r"sol=([A-Za-z0-9_\-]+)", self.headers.get("Cookie",""))
                 if m: db.execute("DELETE FROM sessions WHERE token_hash=?", (th(m.group(1)),))
                 return self.send(200, {"ok":1}, cookie="sol=; Path=/; Max-Age=0")
+            if p.startswith("/api/admin/"): return self.admin(p, b)
             u = user_from(self)
             if not u: return self.send(401, {"error":"auth"})
+            if p == "/api/progress": return self.log_progress(u, b)
+            if p == "/api/progress/undo": return self.undo_progress(u, b)
             if p == "/api/checkin": return self.checkin(u, b)
         self.send(404, {"error":"nf"})
     def _parse(self, b):
@@ -138,6 +164,60 @@ class H(http.server.BaseHTTPRequestHandler):
         salt = secrets.token_hex(16)
         cur = db.execute("INSERT INTO users(name,name_key,salt,pin_hash,created) VALUES(?,?,?,?,?)", (name,key,salt,hp(pin,salt),time.time()))
         self._session(cur.lastrowid, True)
+    def log_progress(self, u, b):
+        try: aid = int(b.get("activity_id")); amt = int(b.get("amount"))
+        except Exception: return self.send(400, {"error":"Please type a whole number."})
+        a = db.execute("SELECT target FROM activities WHERE id=? AND active=1", (aid,)).fetchone()
+        if not a: return self.send(404, {"error":"That activity isn't available."})
+        if amt < 1 or amt > 1000000: return self.send(400, {"error":"Please type a number bigger than 0."})
+        tot = db.execute("SELECT COALESCE(SUM(amount),0) FROM progress WHERE user_id=? AND activity_id=?", (u[0],aid)).fetchone()[0]
+        room = a[0] - tot
+        if room <= 0: return self.send(400, {"error":"You already finished this one. Amazing!"})
+        amt = min(amt, room)
+        db.execute("INSERT INTO progress(user_id,activity_id,amount,created) VALUES(?,?,?,?)", (u[0],aid,amt,time.time()))
+        self.send(200, {"added":amt, **me_payload(u)})
+    def undo_progress(self, u, b):
+        try: aid = int(b.get("activity_id"))
+        except Exception: return self.send(400, {"error":"bad activity"})
+        r = db.execute("SELECT id FROM progress WHERE user_id=? AND activity_id=? ORDER BY id DESC LIMIT 1", (u[0],aid)).fetchone()
+        if not r: return self.send(400, {"error":"Nothing to undo."})
+        db.execute("DELETE FROM progress WHERE id=?", (r[0],))
+        self.send(200, me_payload(u))
+    def admin(self, p, b):
+        if not ADMIN_PASSWORD: return self.send(403, {"error":"Admin is not set up."})
+        now = time.time()
+        if ADMIN_FAILS[1] > now: return self.send(429, {"error":"Too many wrong passwords. Wait a few minutes."})
+        given = self.headers.get("X-Admin-Password","")
+        if not hmac.compare_digest(given.encode(), ADMIN_PASSWORD.encode()):
+            ADMIN_FAILS[0] += 1
+            if ADMIN_FAILS[0] >= 8: ADMIN_FAILS[0] = 0; ADMIN_FAILS[1] = now + 300
+            return self.send(401, {"error":"Wrong password."})
+        ADMIN_FAILS[0] = 0
+        def lst():
+            rows = db.execute("SELECT id,name,target,unit,sort,active FROM activities ORDER BY sort,id").fetchall()
+            return {"activities":[{"id":r[0],"name":r[1],"target":r[2],"unit":r[3],"sort":r[4],"active":bool(r[5]),
+                    "finished":db.execute("SELECT COUNT(*) FROM (SELECT user_id FROM progress WHERE activity_id=? GROUP BY user_id HAVING SUM(amount)>=?)", (r[0],r[2])).fetchone()[0]} for r in rows]}
+        if p == "/api/admin/list": return self.send(200, lst())
+        if p == "/api/admin/save":
+            name = str(b.get("name","")).strip()[:60]; unit = str(b.get("unit","")).strip()[:30]
+            try: target = int(b.get("target"))
+            except Exception: target = 0
+            if not name or not unit or target < 1 or target > 1000000: return self.send(400, {"error":"Please give a name, a unit, and a target between 1 and 1,000,000."})
+            active = 1 if b.get("active", True) else 0
+            if b.get("id"):
+                db.execute("UPDATE activities SET name=?,target=?,unit=?,active=? WHERE id=?", (name,target,unit,active,int(b["id"])))
+            else:
+                mx = db.execute("SELECT COALESCE(MAX(sort),-1)+1 FROM activities").fetchone()[0]
+                db.execute("INSERT INTO activities(name,target,unit,sort,active) VALUES(?,?,?,?,?)", (name,target,unit,mx,active))
+            return self.send(200, lst())
+        if p == "/api/admin/reorder":
+            ids = b.get("ids", [])
+            if isinstance(ids, list):
+                for i,x in enumerate(ids):
+                    try: db.execute("UPDATE activities SET sort=? WHERE id=?", (i,int(x)))
+                    except Exception: pass
+            return self.send(200, lst())
+        self.send(404, {"error":"nf"})
     def checkin(self, u, b):
         try: d = date.fromisoformat(str(b.get("date")))
         except Exception: return self.send(400, {"error":"bad date"})
