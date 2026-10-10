@@ -2,7 +2,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0f1b3d">
 <title>Gymnazo Winter Solstice Challenge</title>
-<!-- ui-marker: solstice-ui-v2-midnight-sun comments-ui-v1 comments-open-v2 once-results-v1 -->
+<!-- ui-marker: solstice-ui-v2-midnight-sun comments-ui-v1 comments-open-v2 once-results-v1 repeat-v1 -->
 <style>
 :root{--navy:#0f1b3d;--navy2:#16264f;--navy3:#1f3266;--deep:#0b1430;--gold:#e3b04b;--gold2:#f2cf7e;--cream:#f7efdf;--ink:#1a2547;--ice:#bcd6f2;--card:rgba(255,255,255,.07);--serif:'Fraunces',Georgia,'Times New Roman',serif;--sans:'Outfit',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -106,6 +106,8 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 .rform{background:rgba(0,0,0,.2);border-radius:16px;padding:12px;margin-top:10px}.rform label{display:block;font-weight:600;margin:8px 0 2px}
 .rform .tm{display:flex;align-items:center;gap:8px;font-size:20px}.rform input,.rform select{width:100%;min-height:60px;font-size:24px;text-align:center;margin:0;border:3px solid var(--ice);border-radius:14px;background:#fff;color:var(--ink);font-family:inherit}
 .rform .tm input{flex:1;min-width:0}.rform .row2{display:flex;gap:10px}.rform .row2>*{flex:1}
+.steps{display:flex;gap:12px;justify-content:center;margin:12px 0}.steps .st{width:72px;height:72px;border-radius:50%;border:4px solid var(--ice);display:flex;align-items:center;justify-content:center;font-size:34px;color:var(--ice)}.steps .st.on{background:var(--gold);border-color:var(--gold2);color:var(--navy);animation:pop .5s cubic-bezier(.3,1.8,.5,1)}
+.rpl{font-size:16px;color:var(--ice);text-align:center}.rpn{width:100%;margin:8px 0 0;font-size:19px;min-height:56px}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style></head><body>
 <div class="stars"></div><canvas id="snow"></canvas><canvas id="confetti"></canvas><div id="toast" role="status" aria-live="polite"></div>
@@ -221,6 +223,20 @@ function phSec(list,ALL,body,cntFn){return [1,2,3,0].map(p=>{const L=list.filter
  return `<section class="ph p${p}"><div class="phh"><h3>${t[1]}</h3><div class="cnt">${cntFn(inP)}</div></div><p class="phd">${t[2]}</p>${L.map(body).join('')}</section>`}).join('')}
 function chalBox(ALL){const d=ALL.filter(a=>a.done).length;const R=[[10,'Raffle entry'],[20,'Sauna 4-pack + 2nd raffle entry'],[30,'1-month tier upgrade']];
  return ALL.length?`<div style="font-weight:700;font-size:21px;margin-top:12px">${d} of 30 challenges complete</div><div class="rw">${R.map(r=>`<div class="${d>=r[0]?'got':''}"><b>${r[0]}</b>${d>=r[0]?'🎉 ':''}${r[1]}</div>`).join('')}</div>`:''}
+const RN={};
+function repeatCard(a){const n=a.total,N=a.target,L=a.repeats||[];
+ const st=[...Array(N)].map((_,i)=>`<div class="st ${i<n?'on':''}" aria-label="${i<n?'Done':'Not yet'}">${i<n?'✔':'○'}</div>`).join('');
+ const when=L.length?`<div class="rpl">${L.map((r,i)=>(i+1)+'. '+esc(fmt(r.day))+(r.note?' · '+esc(r.note):'')).join('<br>')}</div>`:'';
+ const body=a.done?`<div class="res">All ${N} done ✔</div>`:`<div style="text-align:center;font-weight:700;font-size:20px">Done ${n} of ${N}</div>`;
+ return `<div class="act-card once ${a.done?'fin':''}"><div class="act-top"><b>${esc(a.name)}</b><span>${a.done?'✔':n+'/'+N}</span></div><div class="steps">${st}</div>${body}${when}
+ ${a.done?'':`<input class="rpn" type="text" maxlength="100" data-rpn="${a.id}" placeholder="Add a note (if you like)" value="${esc(RN[a.id]||'')}" aria-label="Note"><button class="gold big2" data-rdo="${a.id}" style="margin-top:10px">I did it!</button>`}
+ ${n?`<button class="ghost" data-rundo2="${a.id}" style="margin-top:8px;min-height:56px">↩ Undo last</button>`:''}<div class="err" id="rperr${a.id}" role="alert"></div>${noteBlock(a)}</div>`}
+function bindRepeat(){
+ document.querySelectorAll('[data-rpn]').forEach(i=>i.oninput=()=>RN[i.dataset.rpn]=i.value);
+ document.querySelectorAll('[data-rdo]').forEach(b=>b.onclick=async()=>{const id=+b.dataset.rdo,e=$('rperr'+id);b.disabled=true;e.textContent='';
+  const {ok,j}=await api('/api/repeat',{activity_id:id,note:RN[id]||''});if(!ok){b.disabled=false;e.textContent=j.error||'Something went wrong. Please try again.';return}
+  RN[id]='';ME=j;renderActs();if(j.complete){toast('All '+j.count+' done ✔ Amazing!');confetti(320)}else{toast('Done '+j.count+' of '+(ME.activities.find(x=>x.id===id).target)+'! 🎉');confetti(90)}lb()});
+ document.querySelectorAll('[data-rundo2]').forEach(b=>b.onclick=async()=>{const id=+b.dataset.rundo2;const {ok,j}=await api('/api/repeat/undo',{activity_id:id});if(ok){ME=j;renderActs();toast('Last one removed.');lb()}else $('rperr'+id).textContent=j.error||'Nothing to undo.'})}
 let ROPEN=null;const DR={};
 function fmtT(s){const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60,p=n=>String(n).padStart(2,'0');return h?h+':'+p(m)+':'+p(x):m+':'+p(x)}
 function resText(a){const r=a.result||{},o=[];if(r.weight)o.push('Your weight: '+r.weight+' '+r.unit);if(r.seconds)o.push('Your time: '+fmtT(r.seconds));return o.join(' · ')||'Your result is saved'}
@@ -242,11 +258,11 @@ async function sendResult(id){const d=DR[id]||{},e=$('rerr'+id);if(e)e.textConte
  const {ok,j}=await api('/api/result',{activity_id:id,minutes:d.min,seconds:d.sec,weight:d.wt,unit:d.unit||'lb'});if(!ok){if(e)e.textContent=j.error||'Something went wrong. Please try again.';return}
  ME=j;ROPEN=null;renderActs();if(j.first){toast('Recorded! Great effort 🎉');confetti(160)}else toast('Result updated ✔');lb()}
 function renderActs(){const ALL=ME.activities||[],aq=$('aq').value,S=!!aq.trim(),A=S?ALL.filter(a=>match(a.name,aq)).sort((x,y)=>y.chosen-x.chosen):ALL.filter(a=>a.chosen),O=S?[]:ALL.filter(a=>!a.chosen);$('chal').innerHTML=chalBox(ALL);$('actcard').classList.toggle('hide',!ALL.length);$('addMore').classList.toggle('hide',!ALL.length);
- $('others').innerHTML=O.length?`<h2 style="margin-top:24px;font-size:24px">All activities</h2>`+phSec(O,ALL,a=>`<div class="mini"><div><b>${esc(a.name)}</b><span class="small">${a.kind==='once'?(a.done?'Done ✔':'One effort · no pass or fail'):nf(a.total)+' of '+nf(a.target)+' '+esc(a.unit)+' · '+a.pct+'%'}</span></div><button data-pick="${a.id}">Add to my goals</button></div>`,L=>L.filter(a=>a.done).length+' of '+L.length+' done'):'';
+ $('others').innerHTML=O.length?`<h2 style="margin-top:24px;font-size:24px">All activities</h2>`+phSec(O,ALL,a=>`<div class="mini"><div><b>${esc(a.name)}</b><span class="small">${a.kind==='repeat'?(a.done?'All '+a.target+' done ✔':'Done '+a.total+' of '+a.target):a.kind==='once'?(a.done?'Done ✔':'One effort · no pass or fail'):nf(a.total)+' of '+nf(a.target)+' '+esc(a.unit)+' · '+a.pct+'%'}</span></div><button data-pick="${a.id}">Add to my goals</button></div>`,L=>L.filter(a=>a.done).length+' of '+L.length+' done'):'';
  document.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>savePicks([...ALL.filter(a=>a.chosen).map(a=>a.id),+b.dataset.pick]));
  if(!A.length)$('acts').innerHTML=aq.trim()?'<p>No activities match that. Try fewer letters.</p>':'<p>You haven\'t picked any goals yet. Tap the button below to choose!</p>';
  const open={};document.querySelectorAll('.cin').forEach(i=>open[i.dataset.id]=i.value);
- if(A.length)$('acts').innerHTML=phSec(A,ALL,a=>{if(a.kind==='once')return onceCard(a);const c1=Math.max(1,Math.round(a.target*.1)),c2=Math.max(1,Math.round(a.target*.25));
+ if(A.length)$('acts').innerHTML=phSec(A,ALL,a=>{if(a.kind==='once')return onceCard(a);if(a.kind==='repeat')return repeatCard(a);const c1=Math.max(1,Math.round(a.target*.1)),c2=Math.max(1,Math.round(a.target*.25));
   return `<div class="act-card ${a.done?'fin':''}"><div class="act-top"><b>${esc(a.name)}</b><span>${a.pct}%</span></div>${a.chosen?'':`<button data-pick="${a.id}" style="margin:8px 0;min-height:56px">＋ Add to my list</button>`}
   <div class="small" style="font-size:19px">${nf(a.total)} of ${nf(a.target)} ${esc(a.unit)}</div>
   <div class="abar" role="progressbar" aria-valuenow="${a.pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${Math.min(100,a.pct)}%"></i></div>
@@ -254,12 +270,12 @@ function renderActs(){const ALL=ME.activities||[],aq=$('aq').value,S=!!aq.trim()
   ${a.done?'':`<div class="chips"><button class="gold" data-add="${a.id}" data-n="${c1}">+${nf(c1)}</button><button class="gold" data-add="${a.id}" data-n="${c2}">+${nf(c2)}</button></div>
   <div class="custom"><input class="cin" data-id="${a.id}" type="tel" inputmode="numeric" placeholder="Type a number" value="${esc(open[a.id]||'')}" aria-label="Amount of ${esc(a.unit)}"><button data-addc="${a.id}">Add</button></div>`}
   <button class="ghost" data-undo="${a.id}" style="margin-top:10px;min-height:56px">↩ Undo last</button>
-  <div class="notes"><button class="nh" data-nh="${a.id}">💬 ${a.notes||0} note${a.notes===1?'':'s'} of encouragement ${OPEN.has(a.id)?'▲':'▼'}</button><div class="np ${OPEN.has(a.id)?'':'hide'}" id="np${a.id}"></div></div><div class="err" id="aerr${a.id}" role="alert"></div></div>`},L=>L.filter(a=>a.done).length+' of '+L.length+' done');
+  <div class="notes"><button class="nh" data-nh="${a.id}">💬 ${a.notes||0} note${a.notes===1?'':'s'} of encouragement ${OPEN.has(a.id)?'▲':'▼'}</button><div class="np ${OPEN.has(a.id)?'':'hide'}" id="np${a.id}"></div></div><div class="err" id="aerr${a.id}" role="alert"></div></div>`},L=>L.filter(a=>a.done).length+' of '+L.length+' done'+(L.filter(a=>a.kind==='repeat'&&a.total>0&&!a.done).length?' · '+L.filter(a=>a.kind==='repeat'&&a.total>0&&!a.done).length+' started':''));
  document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>logAct(+b.dataset.add,+b.dataset.n));
  document.querySelectorAll('[data-addc]').forEach(b=>b.onclick=()=>{const i=document.querySelector('.cin[data-id="'+b.dataset.addc+'"]');logAct(+b.dataset.addc,parseInt(i.value.replace(/[^0-9]/g,''),10))});
  document.querySelectorAll('[data-undo]').forEach(b=>b.onclick=()=>undoAct(+b.dataset.undo));
  document.querySelectorAll('[data-nh]').forEach(b=>b.onclick=()=>toggleNotes(+b.dataset.nh));
- bindOnce();OPEN.forEach(id=>drawNotes(id))}
+ bindOnce();bindRepeat();OPEN.forEach(id=>drawNotes(id))}
 const OPEN=new Set(),COM={},DRAFT={},CHEERS=['You\'ve got this!','Great work!','This was a win for me this week','Keep going, I\'m with you'];
 function ago(t){const s=Date.now()/1000-t;if(s<60)return 'just now';if(s<3600)return Math.floor(s/60)+' min ago';if(s<86400){const h=Math.floor(s/3600);return h+(h===1?' hour ago':' hours ago')}const d=Math.floor(s/86400);return d===1?'yesterday':d+' days ago'}
 async function toggleNotes(id){if(OPEN.has(id)){OPEN.delete(id);renderActs();return}OPEN.add(id);renderActs();if(!COM[id]){const {ok,j}=await api('/api/comments/list',{activity_id:id,offset:0});if(ok){COM[id]=j;drawNotes(id)}}}
@@ -282,7 +298,7 @@ let PK=new Set(),PKFIRST=false,PKSHOWN=false;
 function match(name,q){q=q.trim().toLowerCase();return !q||String(name).toLowerCase().indexOf(q)>-1}
 function drawPicker(){const q=$('pkq').value;const L=ME.activities.filter(a=>match(a.name,q));
  L.sort((a,b)=>(PK.has(b.id)-PK.has(a.id))||0);
- $('pkl').innerHTML=L.length?phSec(L,ME.activities,a=>`<label class="pk ${PK.has(a.id)?'on':''}"><input type="checkbox" data-id="${a.id}" ${PK.has(a.id)?'checked':''}><span>${esc(a.name)}<small>${a.kind==='once'?'One effort · you record your '+({time:'time',weight:'weight',both:'weight (and time if you like)',none:'result'}[a.record]||'result'):nf(a.target)+' '+esc(a.unit)+(a.total?' · you have '+nf(a.total)+' logged':'')}</small></span></label>`,P=>P.filter(a=>PK.has(a.id)).length+' of '+P.length+' picked'):'<p>No activities match.</p>';
+ $('pkl').innerHTML=L.length?phSec(L,ME.activities,a=>`<label class="pk ${PK.has(a.id)?'on':''}"><input type="checkbox" data-id="${a.id}" ${PK.has(a.id)?'checked':''}><span>${esc(a.name)}<small>${a.kind==='repeat'?'Do it '+a.target+' times, one at a time':a.kind==='once'?'One effort · you record your '+({time:'time',weight:'weight',both:'weight (and time if you like)',none:'result'}[a.record]||'result'):nf(a.target)+' '+esc(a.unit)+(a.total?' · you have '+nf(a.total)+' logged':'')}</small></span></label>`,P=>P.filter(a=>PK.has(a.id)).length+' of '+P.length+' picked'):'<p>No activities match.</p>';
  $('pkl').querySelectorAll('input').forEach(i=>i.onchange=()=>{i.checked?PK.add(+i.dataset.id):PK.delete(+i.dataset.id);i.parentNode.classList.toggle('on',i.checked);$('pkSave').textContent='Save ('+PK.size+' picked)'})
  $('pkSave').textContent='Save ('+PK.size+' picked)'}
 function openPicker(first){PKFIRST=first;PK=new Set(ME.activities.filter(a=>a.chosen).map(a=>a.id));$('pkq').value='';

@@ -35,7 +35,10 @@ _cols = [r[1] for r in db.execute("PRAGMA table_info(activities)")]
 if "kind" not in _cols: db.execute("ALTER TABLE activities ADD COLUMN kind TEXT DEFAULT 'chunked'")
 if "record_type" not in _cols: db.execute("ALTER TABLE activities ADD COLUMN record_type TEXT DEFAULT 'none'")
 db.execute("CREATE TABLE IF NOT EXISTS results(user_id INTEGER, activity_id INTEGER, seconds INTEGER, weight REAL, wunit TEXT, created REAL, PRIMARY KEY(user_id, activity_id))")
-KINDS = ("chunked","once"); RECS = ("time","weight","both","none")
+if "repeat_count" not in _cols: db.execute("ALTER TABLE activities ADD COLUMN repeat_count INTEGER DEFAULT 3")
+db.execute("CREATE TABLE IF NOT EXISTS repeats(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, activity_id INTEGER, day TEXT, note TEXT, created REAL)")
+db.execute("CREATE INDEX IF NOT EXISTS repeats_ua ON repeats(user_id, activity_id)")
+KINDS = ("chunked","once","repeat"); RECS = ("time","weight","both","none")
 PHASES = {"1":1,"capacity":1,"2":2,"acquire":2,"3":3,"practice":3}
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 ADMIN_FAILS = [0, 0.0]  # count, locked_until
@@ -73,8 +76,14 @@ def activities_for(uid):
     out = []
     chosen = {r[0] for r in db.execute("SELECT activity_id FROM user_activities WHERE user_id=?", (uid,))}
     res = {r[0]:r[1:] for r in db.execute("SELECT activity_id,seconds,weight,wunit FROM results WHERE user_id=?", (uid,))}
-    for aid,name,target,unit,phase,kind,rec in db.execute("SELECT id,name,target,unit,COALESCE(phase,0),COALESCE(kind,'chunked'),COALESCE(record_type,'none') FROM activities WHERE active=1 ORDER BY sort,id").fetchall():
+    reps = {}
+    for aid_,day_,note_ in db.execute("SELECT activity_id,day,note FROM repeats WHERE user_id=? ORDER BY id", (uid,)): reps.setdefault(aid_, []).append({"day":day_,"note":note_ or ""})
+    for aid,name,target,unit,phase,kind,rec,rc in db.execute("SELECT id,name,target,unit,COALESCE(phase,0),COALESCE(kind,'chunked'),COALESCE(record_type,'none'),COALESCE(repeat_count,3) FROM activities WHERE active=1 ORDER BY sort,id").fetchall():
         notes = db.execute("SELECT COUNT(*) FROM comments WHERE activity_id=? AND hidden=0",(aid,)).fetchone()[0]
+        if kind == "repeat":
+            L = reps.get(aid, []); n = min(len(L), rc)
+            out.append({"id":aid,"name":name,"target":rc,"unit":unit,"phase":phase,"kind":"repeat","record":"none","total":n,"pct":n*100//rc,"done":n>=rc,"repeats":L[:rc],"chosen":aid in chosen,"notes":notes})
+            continue
         if kind == "once":
             r = res.get(aid)
             out.append({"id":aid,"name":name,"target":1,"unit":unit,"phase":phase,"kind":"once","record":rec,"total":1 if r else 0,"pct":100 if r else 0,"done":bool(r),
@@ -149,6 +158,8 @@ class H(http.server.BaseHTTPRequestHandler):
             if p == "/api/comments": return self.comment_post(u, b)
             if p == "/api/comments/delete": return self.comment_delete(u, b)
             if p == "/api/comments/react": return self.comment_react(u, b)
+            if p == "/api/repeat": return self.repeat_done(u, b)
+            if p == "/api/repeat/undo": return self.undo_repeat(u, b)
             if p == "/api/result": return self.record_result(u, b)
             if p == "/api/result/undo": return self.undo_result(u, b)
             if p == "/api/picks": return self.save_picks(u, b)
@@ -265,7 +276,7 @@ class H(http.server.BaseHTTPRequestHandler):
         except Exception: return self.send(400, {"error":"Please type a whole number."})
         a = db.execute("SELECT target,COALESCE(kind,'chunked') FROM activities WHERE id=? AND active=1", (aid,)).fetchone()
         if not a: return self.send(404, {"error":"That activity isn't available."})
-        if a[1] == "once": return self.send(400, {"error":"This one is done in a single effort. Tap \"I did it! Record my result\"."})
+        if a[1] != "chunked": return self.send(400, {"error":"This one isn't added up in pieces. Please use its own button."})
         if amt < 1 or amt > 1000000: return self.send(400, {"error":"Please type a number bigger than 0."})
         tot = db.execute("SELECT COALESCE(SUM(amount),0) FROM progress WHERE user_id=? AND activity_id=?", (u[0],aid)).fetchone()[0]
         room = a[0] - tot
@@ -303,6 +314,25 @@ class H(http.server.BaseHTTPRequestHandler):
         first = not db.execute("SELECT 1 FROM results WHERE user_id=? AND activity_id=?", (u[0],aid)).fetchone()
         db.execute("INSERT INTO results(user_id,activity_id,seconds,weight,wunit,created) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,activity_id) DO UPDATE SET seconds=excluded.seconds,weight=excluded.weight,wunit=excluded.wunit", (u[0],aid,secs,wt,wu,time.time()))
         self.send(200, {"first":first, **me_payload(u)})
+    def repeat_done(self, u, b):
+        try: aid = int(b.get("activity_id"))
+        except Exception: return self.send(400, {"error":"bad activity"})
+        a = db.execute("SELECT COALESCE(kind,'chunked'),COALESCE(repeat_count,3) FROM activities WHERE id=? AND active=1", (aid,)).fetchone()
+        if not a or a[0] != "repeat": return self.send(404, {"error":"That activity isn't available."})
+        n, last = db.execute("SELECT COUNT(*),MAX(created) FROM repeats WHERE user_id=? AND activity_id=?", (u[0],aid)).fetchone()
+        if n >= a[1]: return self.send(400, {"error":"You've done all %d. Amazing!" % a[1]})
+        now = time.time()
+        if last and now - last < 5: return self.send(429, {"error":"Got it! Please wait a few seconds before tapping again."})
+        note = re.sub(r"<[^>]*>", "", str(b.get("note",""))); note = re.sub(r"\s+"," ",note).strip()[:100]
+        db.execute("INSERT INTO repeats(user_id,activity_id,day,note,created) VALUES(?,?,?,?,?)", (u[0],aid,today().isoformat(),note,now))
+        self.send(200, {"count":n+1,"complete":n+1>=a[1], **me_payload(u)})
+    def undo_repeat(self, u, b):
+        try: aid = int(b.get("activity_id"))
+        except Exception: return self.send(400, {"error":"bad activity"})
+        r = db.execute("SELECT id FROM repeats WHERE user_id=? AND activity_id=? ORDER BY id DESC LIMIT 1", (u[0],aid)).fetchone()
+        if not r: return self.send(400, {"error":"Nothing to undo."})
+        db.execute("DELETE FROM repeats WHERE id=?", (r[0],))
+        self.send(200, me_payload(u))
     def undo_result(self, u, b):
         try: aid = int(b.get("activity_id"))
         except Exception: return self.send(400, {"error":"bad activity"})
@@ -326,9 +356,9 @@ class H(http.server.BaseHTTPRequestHandler):
             return self.send(401, {"error":"Wrong password."})
         ADMIN_FAILS[0] = 0
         def lst():
-            rows = db.execute("SELECT id,name,target,unit,sort,active,COALESCE(phase,0),COALESCE(kind,'chunked'),COALESCE(record_type,'none') FROM activities ORDER BY sort,id").fetchall()
-            return {"activities":[{"id":r[0],"name":r[1],"target":r[2],"unit":r[3],"sort":r[4],"active":bool(r[5]),"phase":r[6],"kind":r[7],"record":r[8],
-                    "finished":(db.execute("SELECT COUNT(*) FROM results WHERE activity_id=?", (r[0],)).fetchone()[0] if r[7]=="once" else db.execute("SELECT COUNT(*) FROM (SELECT user_id FROM progress WHERE activity_id=? GROUP BY user_id HAVING SUM(amount)>=?)", (r[0],r[2])).fetchone()[0])} for r in rows]}
+            rows = db.execute("SELECT id,name,target,unit,sort,active,COALESCE(phase,0),COALESCE(kind,'chunked'),COALESCE(record_type,'none'),COALESCE(repeat_count,3) FROM activities ORDER BY sort,id").fetchall()
+            return {"activities":[{"id":r[0],"name":r[1],"target":r[2],"unit":r[3],"sort":r[4],"active":bool(r[5]),"phase":r[6],"kind":r[7],"record":r[8],"repeat_count":r[9],
+                    "finished":(db.execute("SELECT COUNT(*) FROM results WHERE activity_id=?", (r[0],)).fetchone()[0] if r[7]=="once" else db.execute("SELECT COUNT(*) FROM (SELECT user_id FROM repeats WHERE activity_id=? GROUP BY user_id HAVING COUNT(*)>=?)", (r[0],r[9])).fetchone()[0] if r[7]=="repeat" else db.execute("SELECT COUNT(*) FROM (SELECT user_id FROM progress WHERE activity_id=? GROUP BY user_id HAVING SUM(amount)>=?)", (r[0],r[2])).fetchone()[0])} for r in rows]}
         if p == "/api/admin/list": return self.send(200, lst())
         if p == "/api/admin/save":
             name = str(b.get("name","")).strip()[:60]; unit = str(b.get("unit","")).strip()[:30]
@@ -336,17 +366,21 @@ class H(http.server.BaseHTTPRequestHandler):
             except Exception: target = 0
             kind = b.get("kind","chunked"); rec = b.get("record","none")
             if kind not in KINDS or rec not in RECS: return self.send(400, {"error":"Please choose a valid Kind and Record."})
+            try: rcount = int(b.get("repeat_count", 3))
+            except Exception: rcount = 3
+            if not 1 <= rcount <= 10: rcount = 3
             if kind == "once": target = 1; unit = unit or "effort"
+            if kind == "repeat": target = rcount; unit = unit or "times"; rec = "none"
             if not name or not unit or target < 1 or target > 1000000: return self.send(400, {"error":"Please give a name, a unit, and a target between 1 and 1,000,000."})
             active = 1 if b.get("active", True) else 0
             try: phase = int(b.get("phase", 0))
             except Exception: phase = 0
             if phase not in (0,1,2,3): phase = 0
             if b.get("id"):
-                db.execute("UPDATE activities SET name=?,target=?,unit=?,active=?,phase=?,kind=?,record_type=? WHERE id=?", (name,target,unit,active,phase,kind,rec,int(b["id"])))
+                db.execute("UPDATE activities SET name=?,target=?,unit=?,active=?,phase=?,kind=?,record_type=?,repeat_count=? WHERE id=?", (name,target,unit,active,phase,kind,rec,rcount,int(b["id"])))
             else:
                 mx = db.execute("SELECT COALESCE(MAX(sort),-1)+1 FROM activities").fetchone()[0]
-                db.execute("INSERT INTO activities(name,target,unit,sort,active,phase,kind,record_type) VALUES(?,?,?,?,?,?,?,?)", (name,target,unit,mx,active,phase,kind,rec))
+                db.execute("INSERT INTO activities(name,target,unit,sort,active,phase,kind,record_type,repeat_count) VALUES(?,?,?,?,?,?,?,?,?)", (name,target,unit,mx,active,phase,kind,rec,rcount))
             return self.send(200, lst())
         if p == "/api/admin/bulk":
             text = str(b.get("text",""))[:100000]; dry = bool(b.get("dry"))
@@ -361,6 +395,7 @@ class H(http.server.BaseHTTPRequestHandler):
                 try: target = int(parts[1].replace(",","")) if len(parts) > 1 else 0
                 except Exception: target = 0
                 if kind == "once": target = 1
+                if kind == "repeat": target = 3; rec = "none"
                 ph = 0
                 if len(parts) > 3 and parts[3]:
                     ph = PHASES.get(parts[3].casefold(), -1)
@@ -372,7 +407,7 @@ class H(http.server.BaseHTTPRequestHandler):
             if not dry:
                 for a in added:
                     mx = db.execute("SELECT COALESCE(MAX(sort),-1)+1 FROM activities").fetchone()[0]
-                    db.execute("INSERT INTO activities(name,target,unit,sort,active,phase,kind,record_type) VALUES(?,?,?,?,1,?,?,?)", (a["name"],a["target"],a["unit"],mx,a["phase"],a["kind"],a["record"]))
+                    db.execute("INSERT INTO activities(name,target,unit,sort,active,phase,kind,record_type,repeat_count) VALUES(?,?,?,?,1,?,?,?,3)", (a["name"],a["target"],a["unit"],mx,a["phase"],a["kind"],a["record"]))
             return self.send(200, {"dry":dry,"added":added,"skipped":skipped,"bad":bad, **lst()})
         if p == "/api/admin/comments":
             try: aid = int(b.get("activity_id") or 0)
@@ -392,7 +427,7 @@ class H(http.server.BaseHTTPRequestHandler):
         if p == "/api/admin/delete":
             try: aid = int(b.get("id"))
             except Exception: return self.send(400, {"error":"bad request"})
-            used = db.execute("SELECT (SELECT COUNT(*) FROM progress WHERE activity_id=?)+(SELECT COUNT(*) FROM results WHERE activity_id=?)+(SELECT COUNT(*) FROM comments WHERE activity_id=?)", (aid,aid,aid)).fetchone()[0]
+            used = db.execute("SELECT (SELECT COUNT(*) FROM progress WHERE activity_id=?)+(SELECT COUNT(*) FROM results WHERE activity_id=?)+(SELECT COUNT(*) FROM comments WHERE activity_id=?)+(SELECT COUNT(*) FROM repeats WHERE activity_id=?)", (aid,aid,aid,aid)).fetchone()[0]
             if used: return self.send(409, {"error":"Members have already used this one, so it can't be deleted. Hide it instead.","used":used})
             db.execute("DELETE FROM user_activities WHERE activity_id=?", (aid,)); db.execute("DELETE FROM activities WHERE id=?", (aid,))
             return self.send(200, {"deleted":True, **lst()})
