@@ -1,4 +1,4 @@
-import http.server, socketserver, sqlite3, json, hashlib, hmac, secrets, os, time, re
+import csv, io, http.server, socketserver, sqlite3, json, hashlib, hmac, secrets, os, time, re
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 TZ = ZoneInfo("America/Los_Angeles")
@@ -100,6 +100,39 @@ def me_payload(u):
     wins = [r[0] for r in db.execute("SELECT milestone FROM wins WHERE user_id=? ORDER BY milestone",(u[0],))]
     return {"name":u[1], "today":today().isoformat(), "start":START.isoformat(), "end":END.isoformat(),
             "total":TOTAL, "milestones":[{"n":n,"label":label(n)} for n in MILESTONES], "badges":wins, "activities":acts, "activitiesDone":sum(1 for a in acts if a["done"]),"picksSaved":bool(db.execute("SELECT 1 FROM user_picks WHERE user_id=?", (u[0],)).fetchone()), **s}
+
+def fdate(t): return datetime.fromtimestamp(t, TZ).date().isoformat() if t else ""
+def member_rows():
+    acts = db.execute("SELECT COUNT(*) FROM activities WHERE active=1").fetchone()[0]
+    out = []
+    for uid,name,created in db.execute("SELECT id,name,created FROM users").fetchall():
+        st = stats(uid)
+        last = db.execute("SELECT MAX(m) FROM (SELECT MAX(created) m FROM checkins WHERE user_id=?1 UNION ALL SELECT MAX(created) FROM progress WHERE user_id=?1 UNION ALL SELECT MAX(created) FROM results WHERE user_id=?1 UNION ALL SELECT MAX(created) FROM repeats WHERE user_id=?1 UNION ALL SELECT MAX(created) FROM comments WHERE user_id=?1)", (uid,)).fetchone()[0] or created or 0
+        out.append({"id":uid,"name":name,"joined":fdate(created),"joined_ts":created or 0,"days":st["done"],"streak":st["current"],
+            "completed":sum(1 for a in activities_for(uid) if a["done"]),"last_active":fdate(last),"last_ts":last,
+            "notes":db.execute("SELECT COUNT(*) FROM comments WHERE user_id=?", (uid,)).fetchone()[0]})
+    out.sort(key=lambda r:-r["last_ts"])
+    return {"total":len(out),"active7":sum(1 for r in out if r["last_ts"] >= time.time()-7*86400),"activities":acts,"members":out}
+def member_detail(uid):
+    u = db.execute("SELECT id,name,created FROM users WHERE id=?", (uid,)).fetchone()
+    if not u: return None
+    nm = dict(db.execute("SELECT id,name FROM activities").fetchall())
+    tg = {r[0]:r[1] for r in db.execute("SELECT id,target FROM activities")}
+    d = {"id":u[0],"name":u[1],"joined":fdate(u[2])}
+    d["checkins"] = [{"day":r[0],"note":r[1] or ""} for r in db.execute("SELECT day,note FROM checkins WHERE user_id=? ORDER BY day DESC", (uid,))]
+    d["picks"] = [nm.get(r[0],"?") for r in db.execute("SELECT activity_id FROM user_activities WHERE user_id=?", (uid,))]
+    prog = {}
+    for aid,amt,c in db.execute("SELECT activity_id,amount,created FROM progress WHERE user_id=? ORDER BY id", (uid,)):
+        p = prog.setdefault(aid, {"activity":nm.get(aid,"?"),"target":tg.get(aid),"total":0,"entries":[]}); p["total"] += amt; p["entries"].append({"amount":amt,"date":fdate(c)})
+    d["progress"] = list(prog.values())
+    d["results"] = [{"activity":nm.get(r[0],"?"),"seconds":r[1],"weight":r[2],"unit":r[3],"date":fdate(r[4])} for r in db.execute("SELECT activity_id,seconds,weight,wunit,created FROM results WHERE user_id=?", (uid,))]
+    d["repeats"] = [{"activity":nm.get(r[0],"?"),"day":r[1],"note":r[2] or "","date":fdate(r[3])} for r in db.execute("SELECT activity_id,day,note,created FROM repeats WHERE user_id=? ORDER BY id", (uid,))]
+    d["comments"] = [{"activity":nm.get(r[0],"?"),"body":r[1],"date":fdate(r[2]),"hidden":bool(r[3])} for r in db.execute("SELECT activity_id,body,created,hidden FROM comments WHERE user_id=? ORDER BY id DESC", (uid,))]
+    return d
+def csv_text(rows):
+    o = io.StringIO(); w = csv.writer(o)
+    for r in rows: w.writerow(["'"+c if isinstance(c,str) and c and c[0] in "=+-@" else c for c in r])
+    return o.getvalue().encode()
 
 class H(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -438,6 +471,49 @@ class H(http.server.BaseHTTPRequestHandler):
                     try: db.execute("UPDATE activities SET sort=? WHERE id=?", (i,int(x)))
                     except Exception: pass
             return self.send(200, lst())
+        if p == "/api/admin/members": return self.send(200, member_rows())
+        if p == "/api/admin/members/detail":
+            try: d = member_detail(int(b.get("id")))
+            except Exception: d = None
+            return self.send(200, d) if d else self.send(404, {"error":"No such member."})
+        if p == "/api/admin/members/csv":
+            m = member_rows()
+            rows = [["name","joined","days_checked_in","current_streak","challenges_completed","challenges_total","last_active","notes_posted"]]
+            rows += [[r["name"],r["joined"],r["days"],r["streak"],r["completed"],m["activities"],r["last_active"],r["notes"]] for r in m["members"]]
+            return self.send(200, csv_text(rows), "text/csv; charset=utf-8")
+        if p == "/api/admin/members/inputs-csv":
+            rows = [["member","type","activity","date","value","note"]]
+            for r in member_rows()["members"]:
+                d = member_detail(r["id"]); n = d["name"]
+                for c in d["checkins"]: rows.append([n,"check-in","",c["day"],"",c["note"]])
+                for a in d["picks"]: rows.append([n,"picked","","","",a])
+                for a in d["progress"]:
+                    for e in a["entries"]: rows.append([n,"progress",a["activity"],e["date"],e["amount"],"total %s of %s"%(a["total"],a["target"])])
+                for x in d["results"]: rows.append([n,"result",x["activity"],x["date"],"; ".join(filter(None,[("%dm%02ds"%divmod(x["seconds"],60)) if x["seconds"] else "", ("%s %s"%(x["weight"],x["unit"])) if x["weight"] else ""])),""])
+                for x in d["repeats"]: rows.append([n,"repeat",x["activity"],x["day"],"",x["note"]])
+                for x in d["comments"]: rows.append([n,"note",x["activity"],x["date"],"hidden" if x["hidden"] else "",x["body"]])
+            return self.send(200, csv_text(rows), "text/csv; charset=utf-8")
+        if p == "/api/admin/members/reset-pin":
+            pin = str(b.get("pin",""))
+            if not re.fullmatch(r"\d{4}", pin): return self.send(400, {"error":"The new PIN must be exactly 4 digits."})
+            try: uid = int(b.get("id"))
+            except Exception: return self.send(400, {"error":"bad request"})
+            if not db.execute("SELECT 1 FROM users WHERE id=?", (uid,)).fetchone(): return self.send(404, {"error":"No such member."})
+            salt = secrets.token_hex(16)
+            db.execute("UPDATE users SET salt=?,pin_hash=?,fails=0,locked_until=0 WHERE id=?", (salt,hp(pin,salt),uid))
+            db.execute("DELETE FROM sessions WHERE user_id=?", (uid,))
+            return self.send(200, {"ok":1})
+        if p == "/api/admin/members/delete":
+            try: uid = int(b.get("id"))
+            except Exception: return self.send(400, {"error":"bad request"})
+            r = db.execute("SELECT name FROM users WHERE id=?", (uid,)).fetchone()
+            if not r: return self.send(404, {"error":"No such member."})
+            if str(b.get("confirm","")).strip().casefold() != r[0].casefold(): return self.send(400, {"error":"Type the member's name exactly to confirm."})
+            db.execute("DELETE FROM reactions WHERE user_id=? OR comment_id IN (SELECT id FROM comments WHERE user_id=?)", (uid,uid))
+            for t in ("sessions","checkins","wins","progress","user_activities","user_picks","comments","results","repeats"):
+                db.execute("DELETE FROM %s WHERE user_id=?" % t, (uid,))
+            db.execute("DELETE FROM users WHERE id=?", (uid,))
+            return self.send(200, {"deleted":True, **member_rows()})
         self.send(404, {"error":"nf"})
     def checkin(self, u, b):
         try: d = date.fromisoformat(str(b.get("date")))
