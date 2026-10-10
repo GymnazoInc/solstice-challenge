@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS wins(user_id INTEGER, milestone INTEGER, created REAL
 CREATE TABLE IF NOT EXISTS activities(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, target INTEGER, unit TEXT, sort INTEGER DEFAULT 0, active INTEGER DEFAULT 1);
 CREATE TABLE IF NOT EXISTS progress(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, activity_id INTEGER, amount INTEGER, created REAL);
 CREATE INDEX IF NOT EXISTS progress_ua ON progress(user_id, activity_id);
+CREATE TABLE IF NOT EXISTS user_activities(user_id INTEGER, activity_id INTEGER, created REAL, PRIMARY KEY(user_id, activity_id));
+CREATE TABLE IF NOT EXISTS user_picks(user_id INTEGER PRIMARY KEY, saved REAL);
 CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT);
 """)
 if not db.execute("SELECT 1 FROM meta WHERE k='seeded'").fetchone():
@@ -58,10 +60,11 @@ def user_from(h):
 
 def activities_for(uid):
     out = []
+    chosen = {r[0] for r in db.execute("SELECT activity_id FROM user_activities WHERE user_id=?", (uid,))}
     for aid,name,target,unit in db.execute("SELECT id,name,target,unit FROM activities WHERE active=1 ORDER BY sort,id").fetchall():
         tot = db.execute("SELECT COALESCE(SUM(amount),0) FROM progress WHERE user_id=? AND activity_id=?", (uid,aid)).fetchone()[0]
         tot = min(tot, target)
-        out.append({"id":aid,"name":name,"target":target,"unit":unit,"total":tot,"pct":int(tot*100//target) if target else 0,"done":tot>=target})
+        out.append({"id":aid,"name":name,"target":target,"unit":unit,"total":tot,"pct":int(tot*100//target) if target else 0,"done":tot>=target,"chosen":aid in chosen})
     return out
 
 def me_payload(u):
@@ -69,7 +72,7 @@ def me_payload(u):
     acts = activities_for(u[0])
     wins = [r[0] for r in db.execute("SELECT milestone FROM wins WHERE user_id=? ORDER BY milestone",(u[0],))]
     return {"name":u[1], "today":today().isoformat(), "start":START.isoformat(), "end":END.isoformat(),
-            "total":TOTAL, "milestones":[{"n":n,"label":label(n)} for n in MILESTONES], "badges":wins, "activities":acts, "activitiesDone":sum(1 for a in acts if a["done"]), **s}
+            "total":TOTAL, "milestones":[{"n":n,"label":label(n)} for n in MILESTONES], "badges":wins, "activities":acts, "activitiesDone":sum(1 for a in acts if a["done"]),"picksSaved":bool(db.execute("SELECT 1 FROM user_picks WHERE user_id=?", (u[0],)).fetchone()), **s}
 
 class H(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -124,6 +127,7 @@ class H(http.server.BaseHTTPRequestHandler):
             if p.startswith("/api/admin/"): return self.admin(p, b)
             u = user_from(self)
             if not u: return self.send(401, {"error":"auth"})
+            if p == "/api/picks": return self.save_picks(u, b)
             if p == "/api/progress": return self.log_progress(u, b)
             if p == "/api/progress/undo": return self.undo_progress(u, b)
             if p == "/api/checkin": return self.checkin(u, b)
@@ -164,6 +168,20 @@ class H(http.server.BaseHTTPRequestHandler):
         salt = secrets.token_hex(16)
         cur = db.execute("INSERT INTO users(name,name_key,salt,pin_hash,created) VALUES(?,?,?,?,?)", (name,key,salt,hp(pin,salt),time.time()))
         self._session(cur.lastrowid, True)
+    def save_picks(self, u, b):
+        ids = b.get("ids")
+        if not isinstance(ids, list): return self.send(400, {"error":"bad picks"})
+        valid = {r[0] for r in db.execute("SELECT id FROM activities WHERE active=1")}
+        keep = set()
+        for x in ids:
+            try:
+                if int(x) in valid: keep.add(int(x))
+            except Exception: pass
+        # only the selection changes; logged progress rows are never touched
+        db.execute("DELETE FROM user_activities WHERE user_id=?", (u[0],))
+        for a in keep: db.execute("INSERT INTO user_activities VALUES(?,?,?)", (u[0],a,time.time()))
+        db.execute("INSERT OR REPLACE INTO user_picks VALUES(?,?)", (u[0], time.time()))
+        self.send(200, me_payload(u))
     def log_progress(self, u, b):
         try: aid = int(b.get("activity_id")); amt = int(b.get("amount"))
         except Exception: return self.send(400, {"error":"Please type a whole number."})

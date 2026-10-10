@@ -83,6 +83,12 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 .chips .full{grid-column:1/-1}
 .custom{display:flex;gap:8px;margin-top:10px}.custom input{margin:0;flex:1;min-width:0}.custom button{width:100px}.custom input{font-size:19px;padding:8px 12px}
 .lb .s .a{display:block}
+.addmore{margin-top:14px}
+.mini{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.12)}.mini div{flex:1;min-width:0}.mini b{display:block}.mini button{width:120px;min-height:56px;font-size:17px}
+#picker{position:fixed;inset:0;z-index:25;background:var(--navy);overflow:auto;padding:14px}#picker .in{max-width:600px;margin:0 auto;padding-bottom:120px}
+.pk{display:flex;align-items:center;gap:14px;min-height:68px;padding:10px 14px;margin:8px 0;border-radius:16px;background:rgba(255,255,255,.08);border:2px solid rgba(188,214,242,.3);cursor:pointer;font-size:20px}
+.pk input{width:34px;height:34px;accent-color:var(--gold);flex:none}.pk.on{border-color:var(--gold);background:rgba(227,176,75,.18)}.pk small{display:block;color:var(--ice);font-size:16px}
+#pkbar{position:fixed;left:0;right:0;bottom:0;padding:12px 14px;background:linear-gradient(transparent,var(--deep) 30%);z-index:26}#pkbar .in2{max-width:600px;margin:0 auto;display:flex;gap:10px}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style></head><body>
 <div class="stars"></div><canvas id="snow"></canvas><canvas id="confetti"></canvas><div id="toast" role="status" aria-live="polite"></div>
@@ -139,7 +145,8 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 <div style="flex:1"><div id="ptxt" style="font-weight:700;font-size:20px"></div><div class="bar"><i id="fill"></i></div><div class="small" id="enc" style="margin-top:8px"></div></div></div>
 <div class="stats"><div class="stat"><b><span class="flame" id="fl">🔥</span> <span id="cur">0</span></b><span class="small">days in a row</span></div><div class="stat"><b>⭐ <span id="lon">0</span></b><span class="small">best streak</span></div></div>
 </div>
-<div class="card" id="actcard"><h2>My Goals 🎯</h2><div class="small">Tap a button to add what you did. Made a mistake? Tap Undo.</div><div id="acts"></div></div>
+<div class="card" id="actcard"><h2>My Goals 🎯</h2><div class="small">Tap a button to add what you did. Made a mistake? Tap Undo.</div><input id="aq" type="text" placeholder="🔍 Search my activities" aria-label="Search activities" style="margin-top:12px"><div id="acts"></div><button class="gold big addmore" id="addMore" style="min-height:76px;font-size:24px">＋ Add more activities</button><div id="others"></div></div>
+<div id="picker" class="hide"><div class="in"><h2 id="pkTitle">Pick your activities</h2><div class="small" id="pkHelp"></div><input id="pkq" type="text" placeholder="🔍 Search activities" aria-label="Search activities"><div id="pkl"></div></div><div id="pkbar"><div class="in2"><button class="ghost hide" id="pkCancel" style="background:var(--navy2)">Cancel</button><button class="gold" id="pkSave">Save</button></div></div></div>
 <div class="card"><h2>My Calendar</h2><div class="small">Gold = done. Tap a day to fill it in.</div><div class="grid" id="grid"></div></div>
 <div class="card"><h2>My Badges</h2><div class="badges" id="badges"></div></div>
 </div>
@@ -186,16 +193,19 @@ function render(){
   g+=`<button data-d="${iso}" aria-label="${fmt(iso)}" class="${iso in ME.days?'on':''} ${iso>t?'fut':''} ${iso===SEL?'sel':''} ${iso===t?'today':''}">${d.getMonth()+1}/${d.getDate()}</button>`}
  $('grid').innerHTML=g;
  $('grid').querySelectorAll('button').forEach(b=>b.onclick=()=>{if(b.dataset.d<=t){SEL=b.dataset.d;render();$('checkcard').scrollIntoView({behavior:RM?'auto':'smooth'})}});
- renderActs();
+ renderActs();if(ME.activities&&ME.activities.length&&!ME.picksSaved&&!PKSHOWN){PKSHOWN=true;openPicker(true)}
  $('badges').innerHTML=ME.milestones.map(m=>{const got=ME.badges.includes(m.n);return `<div class="badge ${got?'got':''}"><span class="ic">${got?(ICONS[m.n]||'🏅'):'🔒'}</span>${esc(m.label)}</div>`}).join('');
 }
 const ACTMSG=[[100,'🏆 Finished! Amazing work!'],[75,'🔥 75% done. Almost there!'],[50,'⭐ Halfway there. Keep going!'],[25,'❄️ 25% done. Great start!']];
 function actMsg(p){const m=ACTMSG.find(x=>p>=x[0]);return m?m[1]:'Tap a button to begin.'}
 function nf(n){return Number(n).toLocaleString()}
-function renderActs(){const A=ME.activities||[];$('actcard').classList.toggle('hide',!A.length);
+function renderActs(){const ALL=ME.activities||[],aq=$('aq').value,S=!!aq.trim(),A=S?ALL.filter(a=>match(a.name,aq)).sort((x,y)=>y.chosen-x.chosen):ALL.filter(a=>a.chosen),O=S?[]:ALL.filter(a=>!a.chosen);$('actcard').classList.toggle('hide',!ALL.length);$('addMore').classList.toggle('hide',!ALL.length);
+ $('others').innerHTML=O.length?`<h2 style="margin-top:20px;font-size:22px">All activities</h2>`+O.map(a=>`<div class="mini"><div><b>${esc(a.name)}</b><span class="small">${nf(a.total)} of ${nf(a.target)} ${esc(a.unit)} · ${a.pct}%</span></div><button data-pick="${a.id}">Add to my goals</button></div>`).join(''):'';
+ document.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>savePicks([...ALL.filter(a=>a.chosen).map(a=>a.id),+b.dataset.pick]));
+ if(!A.length)$('acts').innerHTML=aq.trim()?'<p>No activities match that. Try fewer letters.</p>':'<p>You haven\'t picked any goals yet. Tap the button below to choose!</p>';
  const open={};document.querySelectorAll('.cin').forEach(i=>open[i.dataset.id]=i.value);
- $('acts').innerHTML=A.map(a=>{const c1=Math.max(1,Math.round(a.target*.1)),c2=Math.max(1,Math.round(a.target*.25));
-  return `<div class="act-card ${a.done?'fin':''}"><div class="act-top"><b>${esc(a.name)}</b><span>${a.pct}%</span></div>
+ if(A.length)$('acts').innerHTML=A.map(a=>{const c1=Math.max(1,Math.round(a.target*.1)),c2=Math.max(1,Math.round(a.target*.25));
+  return `<div class="act-card ${a.done?'fin':''}"><div class="act-top"><b>${esc(a.name)}</b><span>${a.pct}%</span></div>${a.chosen?'':`<button data-pick="${a.id}" style="margin:8px 0;min-height:56px">＋ Add to my list</button>`}
   <div class="small" style="font-size:19px">${nf(a.total)} of ${nf(a.target)} ${esc(a.unit)}</div>
   <div class="abar" role="progressbar" aria-valuenow="${a.pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${Math.min(100,a.pct)}%"></i></div>
   <div class="amsg">${actMsg(a.pct)}</div>
@@ -205,6 +215,20 @@ function renderActs(){const A=ME.activities||[];$('actcard').classList.toggle('h
  document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>logAct(+b.dataset.add,+b.dataset.n));
  document.querySelectorAll('[data-addc]').forEach(b=>b.onclick=()=>{const i=document.querySelector('.cin[data-id="'+b.dataset.addc+'"]');logAct(+b.dataset.addc,parseInt(i.value.replace(/[^0-9]/g,''),10))});
  document.querySelectorAll('[data-undo]').forEach(b=>b.onclick=()=>undoAct(+b.dataset.undo))}
+let PK=new Set(),PKFIRST=false,PKSHOWN=false;
+function match(name,q){q=q.trim().toLowerCase();return !q||String(name).toLowerCase().indexOf(q)>-1}
+function drawPicker(){const q=$('pkq').value;const L=ME.activities.filter(a=>match(a.name,q));
+ L.sort((a,b)=>(PK.has(b.id)-PK.has(a.id))||0);
+ $('pkl').innerHTML=L.length?L.map(a=>`<label class="pk ${PK.has(a.id)?'on':''}"><input type="checkbox" data-id="${a.id}" ${PK.has(a.id)?'checked':''}><span>${esc(a.name)}<small>${nf(a.target)} ${esc(a.unit)}${a.total?' · you have '+nf(a.total)+' logged':''}</small></span></label>`).join(''):'<p>No activities match.</p>';
+ $('pkl').querySelectorAll('input').forEach(i=>i.onchange=()=>{i.checked?PK.add(+i.dataset.id):PK.delete(+i.dataset.id);i.parentNode.classList.toggle('on',i.checked);$('pkSave').textContent='Save ('+PK.size+' picked)'})
+ $('pkSave').textContent='Save ('+PK.size+' picked)'}
+function openPicker(first){PKFIRST=first;PK=new Set(ME.activities.filter(a=>a.chosen).map(a=>a.id));$('pkq').value='';
+ $('pkTitle').textContent=first?'Pick your activities':'Add or remove activities';
+ $('pkHelp').textContent=first?'Tick the ones you want to do. You can change this any time.':'Tick to add, untick to remove. Your logged progress is always kept.';
+ $('pkCancel').classList.toggle('hide',first);$('picker').classList.remove('hide');drawPicker()}
+$('pkq').oninput=drawPicker;$('aq').oninput=renderActs;$('addMore').onclick=()=>openPicker(false);$('pkCancel').onclick=()=>$('picker').classList.add('hide');
+$('pkSave').onclick=()=>savePicks([...PK]);
+async function savePicks(ids){const {ok,j}=await api('/api/picks',{ids});if(!ok){toast(j.error||'Something went wrong. Please try again.');return}ME=j;$('picker').classList.add('hide');render();toast('Saved! ✔')}
 async function logAct(id,n){const e=$('aerr'+id);if(!(n>0)){e.textContent='Please type a number first.';return}const before=ME.activities.find(a=>a.id===id).pct;
  const {ok,j}=await api('/api/progress',{activity_id:id,amount:n});if(!ok){e.textContent=j.error||'Something went wrong. Please try again.';return}ME=j;renderActs();const a=ME.activities.find(x=>x.id===id);
  const hit=[100,75,50,25].find(t=>before<t&&a.pct>=t);if(hit){toast(actMsg(hit));confetti(hit===100?300:120)}else toast('Added +'+nf(j.added)+' '+a.unit+' ✔');lb()}
@@ -212,7 +236,7 @@ async function undoAct(id){const e=$('aerr'+id);const {ok,j}=await api('/api/pro
 async function wins(){const {j}=await api('/api/wins');$('wins').innerHTML=(j.wins&&j.wins.length)?`<div style="margin-bottom:6px">${j.members} members taking part</div>`+j.wins.map(w=>`<div class="win">🏅 <b>${esc(w.name)}</b> — ${esc(w.label)} <span class="small">· ${new Date(w.at*1000).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span></div>`).join(''):'No wins yet. Be the first! 🌟'}
 let tt;function toast(m){const t=$('toast');t.textContent=m;t.className='show';clearTimeout(tt);tt=setTimeout(()=>t.className='',4000)}
 $('go').onclick=async()=>{$('lerr').textContent='';const {ok,j}=await api(MODE==='new'?'/api/register':'/api/login',{name:$('name').value,pin:$('pin').value});if(!ok){$('lerr').textContent=j.error||'Something went wrong. Please try again.';return}ME=j;SEL=null;render();if(j.new){toast('Welcome, '+j.name+'! ❄️');confetti(80)}else toast('Welcome back, '+j.name+'! ☀️');};
-$('out').onclick=async()=>{await api('/api/logout',{});ME=null;$('pin').value='';$('back').onclick();render()};
+$('out').onclick=async()=>{await api('/api/logout',{});ME=null;PKSHOWN=false;$('picker').classList.add('hide');$('pin').value='';$('back').onclick();render()};
 async function doCheckin(done){$('cerr').textContent='';const wasDone=SEL in ME.days;const {ok,j}=await api('/api/checkin',{date:SEL,done:done,note:$('note').value});if(!ok){$('cerr').textContent=j.error||'Something went wrong. Please try again.';return}ME=j;render();
  if(j.newBadges.length){const m=ME.milestones.find(x=>x.n===j.newBadges[j.newBadges.length-1]);toast('🏅 New badge: '+m.label);confetti(j.newBadges.includes(62)?420:220)}else if(!done)toast('Check-in removed.');else if(wasDone)toast('Note saved ✔');else{toast(['You did it! 🎉','Nice work! ⭐','Way to go! 💪','Another day done! ☀️'][Math.random()*4|0]);confetti(70)}wins();lb()}
 $('save').onclick=()=>doCheckin(true);$('undo').onclick=()=>doCheckin(false);
