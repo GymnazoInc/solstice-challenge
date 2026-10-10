@@ -19,6 +19,9 @@ CREATE TABLE IF NOT EXISTS progress(id INTEGER PRIMARY KEY AUTOINCREMENT, user_i
 CREATE INDEX IF NOT EXISTS progress_ua ON progress(user_id, activity_id);
 CREATE TABLE IF NOT EXISTS user_activities(user_id INTEGER, activity_id INTEGER, created REAL, PRIMARY KEY(user_id, activity_id));
 CREATE TABLE IF NOT EXISTS user_picks(user_id INTEGER PRIMARY KEY, saved REAL);
+CREATE TABLE IF NOT EXISTS comments(id INTEGER PRIMARY KEY AUTOINCREMENT, activity_id INTEGER, user_id INTEGER, body TEXT, created REAL, hidden INTEGER DEFAULT 0);
+CREATE INDEX IF NOT EXISTS comments_a ON comments(activity_id, hidden, id);
+CREATE TABLE IF NOT EXISTS reactions(comment_id INTEGER, user_id INTEGER, kind TEXT, created REAL, PRIMARY KEY(comment_id, user_id, kind));
 CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT);
 """)
 if not db.execute("SELECT 1 FROM meta WHERE k='seeded'").fetchone():
@@ -67,7 +70,7 @@ def activities_for(uid):
     for aid,name,target,unit,phase in db.execute("SELECT id,name,target,unit,COALESCE(phase,0) FROM activities WHERE active=1 ORDER BY sort,id").fetchall():
         tot = db.execute("SELECT COALESCE(SUM(amount),0) FROM progress WHERE user_id=? AND activity_id=?", (uid,aid)).fetchone()[0]
         tot = min(tot, target)
-        out.append({"id":aid,"name":name,"target":target,"unit":unit,"phase":phase,"total":tot,"pct":int(tot*100//target) if target else 0,"done":tot>=target,"chosen":aid in chosen})
+        out.append({"id":aid,"name":name,"target":target,"unit":unit,"phase":phase,"total":tot,"pct":int(tot*100//target) if target else 0,"done":tot>=target,"chosen":aid in chosen,"notes":db.execute("SELECT COUNT(*) FROM comments WHERE activity_id=? AND hidden=0",(aid,)).fetchone()[0]})
     return out
 
 def me_payload(u):
@@ -130,6 +133,10 @@ class H(http.server.BaseHTTPRequestHandler):
             if p.startswith("/api/admin/"): return self.admin(p, b)
             u = user_from(self)
             if not u: return self.send(401, {"error":"auth"})
+            if p == "/api/comments/list": return self.comments_list(u, b)
+            if p == "/api/comments": return self.comment_post(u, b)
+            if p == "/api/comments/delete": return self.comment_delete(u, b)
+            if p == "/api/comments/react": return self.comment_react(u, b)
             if p == "/api/picks": return self.save_picks(u, b)
             if p == "/api/progress": return self.log_progress(u, b)
             if p == "/api/progress/undo": return self.undo_progress(u, b)
@@ -171,6 +178,60 @@ class H(http.server.BaseHTTPRequestHandler):
         salt = secrets.token_hex(16)
         cur = db.execute("INSERT INTO users(name,name_key,salt,pin_hash,created) VALUES(?,?,?,?,?)", (name,key,salt,hp(pin,salt),time.time()))
         self._session(cur.lastrowid, True)
+    def _clist(self, u, aid, offset):
+        tot = db.execute("SELECT COUNT(*) FROM comments WHERE activity_id=? AND hidden=0", (aid,)).fetchone()[0]
+        rows = db.execute("SELECT c.id,u.name,c.body,c.created,c.user_id FROM comments c JOIN users u ON u.id=c.user_id WHERE c.activity_id=? AND c.hidden=0 ORDER BY c.id DESC LIMIT 5 OFFSET ?", (aid,offset)).fetchall()
+        def rx(cid):
+            c = {"heart":0,"thumb":0}; mine = []
+            for k,n,m in db.execute("SELECT kind,COUNT(*),SUM(user_id=?) FROM reactions WHERE comment_id=? GROUP BY kind", (u[0],cid)):
+                if k in c: c[k] = n
+                if m: mine.append(k)
+            return c, mine
+        out = []
+        for r in rows:
+            c, mine = rx(r[0])
+            out.append({"id":r[0],"name":r[1],"body":r[2],"at":r[3],"mine":r[4]==u[0],"hearts":c["heart"],"thumbs":c["thumb"],"myReactions":mine})
+        return {"activity_id":aid,"total":tot,"offset":offset,"comments":out}
+    def comments_list(self, u, b):
+        try: aid = int(b.get("activity_id")); off = max(0, int(b.get("offset", 0)))
+        except Exception: return self.send(400, {"error":"bad request"})
+        self.send(200, self._clist(u, aid, off))
+    def comment_post(self, u, b):
+        try: aid = int(b.get("activity_id"))
+        except Exception: return self.send(400, {"error":"bad request"})
+        if not db.execute("SELECT 1 FROM activities WHERE id=? AND active=1", (aid,)).fetchone():
+            return self.send(404, {"error":"That activity isn't available."})
+        body = re.sub(r"<[^>]*>", "", str(b.get("body",""))); body = re.sub(r"\s+", " ", body).strip()[:200]
+        if not body: return self.send(400, {"error":"Please write a few words first."})
+        now = time.time()
+        if db.execute("SELECT COUNT(*) FROM comments WHERE user_id=? AND created>?", (u[0], now-86400)).fetchone()[0] >= 20:
+            return self.send(429, {"error":"You've shared lots of encouragement today. Thank you! Please come back tomorrow."})
+        last = db.execute("SELECT MAX(created) FROM comments WHERE user_id=? AND activity_id=?", (u[0],aid)).fetchone()[0]
+        if last and now - last < 10:
+            return self.send(429, {"error":"Nice! Please wait a few seconds before adding another note."})
+        db.execute("INSERT INTO comments(activity_id,user_id,body,created,hidden) VALUES(?,?,?,?,0)", (aid,u[0],body,now))
+        self.send(200, self._clist(u, aid, 0))
+    def comment_react(self, u, b):
+        kind = b.get("kind")
+        if kind not in ("heart","thumb"): return self.send(400, {"error":"Only a heart or a thumbs up is allowed."})
+        try: cid = int(b.get("id"))
+        except Exception: return self.send(400, {"error":"bad request"})
+        r = db.execute("SELECT activity_id FROM comments WHERE id=? AND hidden=0", (cid,)).fetchone()
+        if not r: return self.send(404, {"error":"That note isn't available."})
+        if db.execute("SELECT 1 FROM reactions WHERE comment_id=? AND user_id=? AND kind=?", (cid,u[0],kind)).fetchone():
+            db.execute("DELETE FROM reactions WHERE comment_id=? AND user_id=? AND kind=?", (cid,u[0],kind))
+        else:
+            db.execute("INSERT INTO reactions VALUES(?,?,?,?)", (cid,u[0],kind,time.time()))
+        try: off = max(0, int(b.get("offset", 0)))
+        except Exception: off = 0
+        self.send(200, self._clist(u, r[0], 0))
+    def comment_delete(self, u, b):
+        try: cid = int(b.get("id"))
+        except Exception: return self.send(400, {"error":"bad request"})
+        r = db.execute("SELECT activity_id FROM comments WHERE id=? AND user_id=?", (cid,u[0])).fetchone()
+        if not r: return self.send(404, {"error":"That note isn't yours to delete."})
+        db.execute("DELETE FROM comments WHERE id=?", (cid,)); db.execute("DELETE FROM reactions WHERE comment_id=?", (cid,))
+        self.send(200, self._clist(u, r[0], 0))
     def save_picks(self, u, b):
         ids = b.get("ids")
         if not isinstance(ids, list): return self.send(400, {"error":"bad picks"})
@@ -257,6 +318,21 @@ class H(http.server.BaseHTTPRequestHandler):
                     mx = db.execute("SELECT COALESCE(MAX(sort),-1)+1 FROM activities").fetchone()[0]
                     db.execute("INSERT INTO activities(name,target,unit,sort,active,phase) VALUES(?,?,?,?,1,?)", (a["name"],a["target"],a["unit"],mx,a["phase"]))
             return self.send(200, {"dry":dry,"added":added,"skipped":skipped,"bad":bad, **lst()})
+        if p == "/api/admin/comments":
+            try: aid = int(b.get("activity_id") or 0)
+            except Exception: aid = 0
+            q = "SELECT c.id,c.activity_id,a.name,u.name,c.body,c.created,c.hidden FROM comments c JOIN activities a ON a.id=c.activity_id JOIN users u ON u.id=c.user_id"
+            rows = db.execute(q + (" WHERE c.activity_id=?" if aid else "") + " ORDER BY c.id DESC LIMIT 200", ((aid,) if aid else ())).fetchall()
+            tot = db.execute("SELECT COUNT(*), COALESCE(SUM(hidden),0) FROM comments").fetchone()
+            return self.send(200, {"total":tot[0],"hidden":tot[1],"comments":[{"id":r[0],"activity_id":r[1],"activity":r[2],"author":r[3],"body":r[4],"at":r[5],"hidden":bool(r[6])} for r in rows]})
+        if p == "/api/admin/comments/hide":
+            try: db.execute("UPDATE comments SET hidden=? WHERE id=?", (1 if b.get("hidden", True) else 0, int(b.get("id"))))
+            except Exception: return self.send(400, {"error":"bad request"})
+            return self.send(200, {"ok":1})
+        if p == "/api/admin/comments/delete":
+            try: cid = int(b.get("id")); db.execute("DELETE FROM comments WHERE id=?", (cid,)); db.execute("DELETE FROM reactions WHERE comment_id=?", (cid,))
+            except Exception: return self.send(400, {"error":"bad request"})
+            return self.send(200, {"ok":1})
         if p == "/api/admin/reorder":
             ids = b.get("ids", [])
             if isinstance(ids, list):

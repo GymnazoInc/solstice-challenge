@@ -2,7 +2,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0f1b3d">
 <title>Gymnazo Winter Solstice Challenge</title>
-<!-- ui-marker: solstice-ui-v2-midnight-sun -->
+<!-- ui-marker: solstice-ui-v2-midnight-sun comments-ui-v1 -->
 <style>
 :root{--navy:#0f1b3d;--navy2:#16264f;--navy3:#1f3266;--deep:#0b1430;--gold:#e3b04b;--gold2:#f2cf7e;--cream:#f7efdf;--ink:#1a2547;--ice:#bcd6f2;--card:rgba(255,255,255,.07);--serif:'Fraunces',Georgia,'Times New Roman',serif;--sans:'Outfit',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -67,7 +67,6 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 .badge.got{background:linear-gradient(#f6d68b,var(--gold));color:var(--navy);border:2px solid var(--gold2);font-weight:700;animation:pop .6s cubic-bezier(.3,1.8,.5,1)}.badge.got .ic{filter:none}
 @keyframes pop{from{transform:scale(.7)}}
 .lb{display:flex;align-items:center;gap:10px;padding:14px 10px;border-radius:16px;font-size:20px;min-height:64px}.lb:nth-child(even){background:rgba(255,255,255,.05)}
-.lb.top1{background:rgba(227,176,75,.22)!important}
 .lb.me{outline:3px solid var(--gold);font-weight:700}
 .lb .r{width:48px;text-align:center;font-size:30px;font-weight:700;color:var(--gold2)}.lb .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lb .s{font-size:16px;color:var(--ice);text-align:right}
 .win{padding:14px 0;border-bottom:1px solid rgba(255,255,255,.12);font-size:19px}
@@ -96,6 +95,12 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 .phd{font-family:var(--serif);font-style:italic;color:var(--ice);font-size:18px;margin:0 0 8px}
 .ph .act-card{border-color:var(--pc)}.ph .pk.on{border-color:var(--pc)}
 .rw{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}.rw div{border-radius:14px;padding:8px 4px;text-align:center;font-size:15px;background:rgba(255,255,255,.07);border:2px dashed rgba(188,214,242,.35)}.rw div b{display:block;font-family:var(--serif);font-size:24px}.rw div.got{background:var(--gold);color:var(--navy);border:2px solid var(--gold2)}
+.notes{margin-top:10px}.nh{background:transparent;color:var(--ice);border:1.5px solid rgba(188,214,242,.35);box-shadow:none;font-size:17px;font-weight:600;min-height:56px;text-align:left}
+.np{margin-top:8px;background:rgba(0,0,0,.18);border-radius:16px;padding:12px}
+.cm{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.1);font-size:18px}.cm .who{font-size:15px;color:var(--ice)}.cm .bd{margin:2px 0 6px;word-break:break-word}
+.cm .rx{display:flex;gap:8px;flex-wrap:wrap}.cm .rx button{width:auto;min-height:48px;padding:4px 14px;font-size:18px;background:rgba(255,255,255,.1);color:var(--cream);box-shadow:none}.cm .rx button.on{background:var(--gold);color:var(--navy)}.cm .rx button.del{background:transparent;color:var(--ice);font-size:15px;border:1.5px solid rgba(188,214,242,.4)}
+.cheers{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.cheers button{width:auto;flex:1 1 45%;min-height:56px;font-size:16px;padding:6px 10px;background:rgba(227,176,75,.2);color:var(--cream);border:1.5px solid rgba(227,176,75,.6);box-shadow:none}
+.np textarea{background:#fff;color:var(--ink);font-size:19px;min-height:72px}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style></head><body>
 <div class="stars"></div><canvas id="snow"></canvas><canvas id="confetti"></canvas><div id="toast" role="status" aria-live="polite"></div>
@@ -110,7 +115,7 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 <div class="count" id="count">&nbsp;</div>
 </header>
 
-<nav><button data-t="me" class="act"><span class="e">🏠</span>My Page</button><button data-t="lb"><span class="e">🏆</span>Leaderboard</button><button data-t="wins"><span class="e">🎉</span>Wins</button></nav>
+<nav><button data-t="me" class="act"><span class="e">🏠</span>My Page</button><button data-t="lb"><span class="e">❄️</span>Momentum</button><button data-t="wins"><span class="e">🎉</span>Wins</button></nav>
 
 <div id="tab-me">
 <div id="login" class="card hide">
@@ -158,7 +163,7 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 <div class="card"><h2>My Badges</h2><div class="badges" id="badges"></div></div>
 </div>
 </div>
-<div id="tab-lb" class="hide"><div class="card"><h2>🏆 Leaderboard</h2><p class="small" style="margin-top:0">Most days done are at the top. Everyone is cheering each other on! 💙</p><div id="lbt">Loading…</div></div></div>
+<div id="tab-lb" class="hide"><div class="card"><h2>❄️ Momentum board</h2><p class="small" style="margin-top:0">See who is moving with you. Every day counts, and we're cheering for everyone! 💙</p><div id="lbt">Loading…</div></div></div>
 <div id="tab-wins" class="hide"><div class="card"><h2>🎉 Wins Wall</h2><div id="wins" class="small">Loading…</div></div></div>
 </div>
 <script>
@@ -223,10 +228,29 @@ function renderActs(){const ALL=ME.activities||[],aq=$('aq').value,S=!!aq.trim()
   <div class="amsg">${actMsg(a.pct)}</div>
   ${a.done?'':`<div class="chips"><button class="gold" data-add="${a.id}" data-n="${c1}">+${nf(c1)}</button><button class="gold" data-add="${a.id}" data-n="${c2}">+${nf(c2)}</button></div>
   <div class="custom"><input class="cin" data-id="${a.id}" type="tel" inputmode="numeric" placeholder="Type a number" value="${esc(open[a.id]||'')}" aria-label="Amount of ${esc(a.unit)}"><button data-addc="${a.id}">Add</button></div>`}
-  <button class="ghost" data-undo="${a.id}" style="margin-top:10px;min-height:56px">↩ Undo last</button><div class="err" id="aerr${a.id}" role="alert"></div></div>`},L=>L.filter(a=>a.done).length+' of '+L.length+' done');
+  <button class="ghost" data-undo="${a.id}" style="margin-top:10px;min-height:56px">↩ Undo last</button>
+  <div class="notes"><button class="nh" data-nh="${a.id}">💬 ${a.notes||0} note${a.notes===1?'':'s'} of encouragement ${OPEN.has(a.id)?'▲':'▼'}</button><div class="np ${OPEN.has(a.id)?'':'hide'}" id="np${a.id}"></div></div><div class="err" id="aerr${a.id}" role="alert"></div></div>`},L=>L.filter(a=>a.done).length+' of '+L.length+' done');
  document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>logAct(+b.dataset.add,+b.dataset.n));
  document.querySelectorAll('[data-addc]').forEach(b=>b.onclick=()=>{const i=document.querySelector('.cin[data-id="'+b.dataset.addc+'"]');logAct(+b.dataset.addc,parseInt(i.value.replace(/[^0-9]/g,''),10))});
- document.querySelectorAll('[data-undo]').forEach(b=>b.onclick=()=>undoAct(+b.dataset.undo))}
+ document.querySelectorAll('[data-undo]').forEach(b=>b.onclick=()=>undoAct(+b.dataset.undo));
+ document.querySelectorAll('[data-nh]').forEach(b=>b.onclick=()=>toggleNotes(+b.dataset.nh));
+ OPEN.forEach(id=>drawNotes(id))}
+const OPEN=new Set(),COM={},DRAFT={},CHEERS=['You\'ve got this!','Great work!','This was a win for me this week','Keep going, I\'m with you'];
+function ago(t){const s=Date.now()/1000-t;if(s<60)return 'just now';if(s<3600)return Math.floor(s/60)+' min ago';if(s<86400){const h=Math.floor(s/3600);return h+(h===1?' hour ago':' hours ago')}const d=Math.floor(s/86400);return d===1?'yesterday':d+' days ago'}
+async function toggleNotes(id){if(OPEN.has(id)){OPEN.delete(id);renderActs();return}OPEN.add(id);renderActs();if(!COM[id]){const {ok,j}=await api('/api/comments/list',{activity_id:id,offset:0});if(ok){COM[id]=j;drawNotes(id)}}}
+function setCom(id,j,keep){if(keep&&COM[id]){const ex=COM[id].comments;j.comments.forEach(c=>{const i=ex.findIndex(x=>x.id===c.id);if(i>-1)ex[i]=c});COM[id].total=j.total}else COM[id]=j;const a=ME.activities.find(x=>x.id===id);if(a)a.notes=j.total;const b=document.querySelector('[data-nh="'+id+'"]');if(b)b.textContent='💬 '+j.total+' note'+(j.total===1?'':'s')+' of encouragement ▲'}
+function drawNotes(id){const el=$('np'+id);if(!el)return;const C=COM[id];if(!C){el.innerHTML='<p class="small">Loading…</p>';return}
+ const keep=el.querySelector('textarea');if(keep)DRAFT[id]=keep.value;
+ el.innerHTML=(C.comments.length?C.comments.map(c=>`<div class="cm"><div class="who">${esc(c.name)}${c.mine?' (you)':''} · ${ago(c.at)}</div><div class="bd">${esc(c.body)}</div><div class="rx"><button data-rx="${c.id}" data-k="heart" class="${(c.myReactions||[]).includes('heart')?'on':''}" aria-label="Heart">❤️ ${c.hearts||''}</button><button data-rx="${c.id}" data-k="thumb" class="${(c.myReactions||[]).includes('thumb')?'on':''}" aria-label="Thumbs up">👍 ${c.thumbs||''}</button>${c.mine?`<button class="del" data-cd="${c.id}">Delete my note</button>`:''}</div></div>`).join(''):'<p class="small">No notes yet. Be the first to cheer someone on!</p>')
+ +(C.comments.length<C.total?`<button class="ghost" data-more="${id}" style="margin:8px 0;color:var(--cream)">Show more</button>`:'')
+ +`<div class="cheers">${CHEERS.map((t,i)=>`<button data-ch="${id}" data-i="${i}">${esc(t)}</button>`).join('')}</div><textarea maxlength="200" rows="2" placeholder="Write a few kind words (optional)" aria-label="Your note">${esc(DRAFT[id]||'')}</textarea><button class="gold" data-send="${id}">Add encouragement</button><div class="err" id="ne${id}" role="alert"></div>`;
+ el.querySelectorAll('[data-rx]').forEach(b=>b.onclick=async()=>{const {ok,j}=await api('/api/comments/react',{id:+b.dataset.rx,kind:b.dataset.k});if(ok){setCom(id,j,true);drawNotes(id)}});
+ el.querySelectorAll('[data-cd]').forEach(b=>b.onclick=async()=>{const {ok,j}=await api('/api/comments/delete',{id:+b.dataset.cd});if(ok){setCom(id,j,false);drawNotes(id);toast('Note deleted.')}});
+ el.querySelectorAll('[data-more]').forEach(b=>b.onclick=async()=>{const {ok,j}=await api('/api/comments/list',{activity_id:id,offset:C.comments.length});if(ok){C.comments=C.comments.concat(j.comments);C.total=j.total;drawNotes(id)}});
+ el.querySelectorAll('[data-ch]').forEach(b=>b.onclick=()=>postNote(id,CHEERS[+b.dataset.i]));
+ el.querySelector('[data-send]').onclick=()=>postNote(id,el.querySelector('textarea').value)}
+async function postNote(id,body){const e=$('ne'+id);if(e)e.textContent='';if(!String(body).trim()){if(e)e.textContent='Please write a few words first, or tap one of the buttons above.';return}
+ const {ok,j}=await api('/api/comments',{activity_id:id,body});if(!ok){if(e)e.textContent=j.error||'Something went wrong. Please try again.';return}DRAFT[id]='';setCom(id,j,false);drawNotes(id);toast('Thank you for the encouragement! 💙')}
 let PK=new Set(),PKFIRST=false,PKSHOWN=false;
 function match(name,q){q=q.trim().toLowerCase();return !q||String(name).toLowerCase().indexOf(q)>-1}
 function drawPicker(){const q=$('pkq').value;const L=ME.activities.filter(a=>match(a.name,q));
@@ -248,7 +272,7 @@ async function undoAct(id){const e=$('aerr'+id);const {ok,j}=await api('/api/pro
 async function wins(){const {j}=await api('/api/wins');$('wins').innerHTML=(j.wins&&j.wins.length)?`<div style="margin-bottom:6px">${j.members} members taking part</div>`+j.wins.map(w=>`<div class="win">🏅 <b>${esc(w.name)}</b> — ${esc(w.label)} <span class="small">· ${new Date(w.at*1000).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span></div>`).join(''):'No wins yet. Be the first! 🌟'}
 let tt;function toast(m){const t=$('toast');t.textContent=m;t.className='show';clearTimeout(tt);tt=setTimeout(()=>t.className='',4000)}
 $('go').onclick=async()=>{$('lerr').textContent='';const {ok,j}=await api(MODE==='new'?'/api/register':'/api/login',{name:$('name').value,pin:$('pin').value});if(!ok){$('lerr').textContent=j.error||'Something went wrong. Please try again.';return}ME=j;SEL=null;render();if(j.new){toast('Welcome, '+j.name+'! ❄️');confetti(80)}else toast('Welcome back, '+j.name+'! ☀️');};
-$('out').onclick=async()=>{await api('/api/logout',{});ME=null;PKSHOWN=false;$('picker').classList.add('hide');$('pin').value='';$('back').onclick();render()};
+$('out').onclick=async()=>{await api('/api/logout',{});ME=null;PKSHOWN=false;OPEN.clear();Object.keys(COM).forEach(k=>delete COM[k]);$('picker').classList.add('hide');$('pin').value='';$('back').onclick();render()};
 async function doCheckin(done){$('cerr').textContent='';const wasDone=SEL in ME.days;const {ok,j}=await api('/api/checkin',{date:SEL,done:done,note:$('note').value});if(!ok){$('cerr').textContent=j.error||'Something went wrong. Please try again.';return}ME=j;render();
  if(j.newBadges.length){const m=ME.milestones.find(x=>x.n===j.newBadges[j.newBadges.length-1]);toast('🏅 New badge: '+m.label);confetti(j.newBadges.includes(62)?420:220)}else if(!done)toast('Check-in removed.');else if(wasDone)toast('Note saved ✔');else{toast(['You did it! 🎉','Nice work! ⭐','Way to go! 💪','Another day done! ☀️'][Math.random()*4|0]);confetti(70)}wins();lb()}
 $('save').onclick=()=>doCheckin(true);$('undo').onclick=()=>doCheckin(false);
@@ -258,12 +282,12 @@ function confetti(n){if(RM)return;const c=$('confetti'),x=c.getContext('2d');c.w
 function snow(){if(RM)return;const c=$('snow'),x=c.getContext('2d');let W,H;const rs=()=>{W=c.width=innerWidth;H=c.height=innerHeight};rs();addEventListener('resize',rs);
  const F=[...Array(46)].map(()=>({x:Math.random()*W,y:Math.random()*H,r:1+Math.random()*2.6,v:.3+Math.random()*.8,a:Math.random()*6}));
  (function step(){x.clearRect(0,0,W,H);x.fillStyle='rgba(247,239,223,.75)';F.forEach(p=>{p.y+=p.v;p.x+=Math.sin(p.a+=.01)*.4;if(p.y>H+5){p.y=-5;p.x=Math.random()*W}x.beginPath();x.arc(p.x,p.y,p.r,0,6.3);x.fill()});if(!document.hidden)requestAnimationFrame(step);else setTimeout(step,500)})()}
-async function lb(){const {j}=await api('/api/leaderboard');if(!j.top||!j.top.length){$('lbt').textContent='No check-ins yet. Be the first on the board! 🌟';return}
- const row=r=>`<div class="lb ${r.me?'me':''} ${r.rank===1?'top1':''}"><span class="r">${r.rank<=3?['🥇','🥈','🥉'][r.rank-1]:r.rank}</span><span class="n">${esc(r.name)}${r.me?' (you)':''}</span><span class="s"><b>${r.done}</b> days<br>🔥 ${r.current} in a row${r.acts?`<span class="a">🎯 ${r.acts} goal${r.acts>1?'s':''} done</span>`:''}</span></div>`;
+async function lb(){const {j}=await api('/api/leaderboard');if(!j.top||!j.top.length){$('lbt').textContent='No check-ins yet. Be the first to get the momentum going! 🌟';return}
+ const row=r=>`<div class="lb ${r.me?'me':''}"><span class="r">${r.current>=3?'🔥':'❄️'}</span><span class="n">${esc(r.name)}${r.me?' (you)':''}</span><span class="s"><b>${r.done}</b> day${r.done===1?'':'s'} active${r.current>1?`<span class="a">${r.current} in a row</span>`:''}${r.acts?`<span class="a">🎯 ${r.acts} goal${r.acts>1?'s':''} done</span>`:''}</span></div>`;
  let h=j.top.map(row).join('');
  if(j.me&&j.me.rank>10)h+='<div class="small" style="text-align:center;margin:6px">· · ·</div>'+row(j.me);
- else if(!j.me&&ME)h+='<p class="small">Check in once to join the board!</p>';
- $('lbt').innerHTML=h+`<p class="small">${j.total} members on the board</p>`}
+ else if(!j.me&&ME)h+='<p class="small">Check in once to join the Momentum board!</p>';
+ $('lbt').innerHTML=h+`<p class="small">${j.total} members building momentum together</p>`}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('act',x===b));['me','lb','wins'].forEach(t=>$('tab-'+t).classList.toggle('hide',t!==b.dataset.t));if(b.dataset.t==='lb')lb();if(b.dataset.t==='wins')wins();scrollTo(0,0)});
 snow();
 (async()=>{const {ok,j}=await api('/api/me');if(ok)ME=j;render();wins()})();
