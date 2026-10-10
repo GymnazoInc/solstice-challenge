@@ -228,6 +228,26 @@ class H(http.server.BaseHTTPRequestHandler):
                 mx = db.execute("SELECT COALESCE(MAX(sort),-1)+1 FROM activities").fetchone()[0]
                 db.execute("INSERT INTO activities(name,target,unit,sort,active) VALUES(?,?,?,?,?)", (name,target,unit,mx,active))
             return self.send(200, lst())
+        if p == "/api/admin/bulk":
+            text = str(b.get("text",""))[:100000]; dry = bool(b.get("dry"))
+            seen = {r[0].casefold() for r in db.execute("SELECT name FROM activities WHERE active=1")}
+            added, skipped, bad = [], [], []
+            for n, line in enumerate(text.splitlines(), 1):
+                if not line.strip(): continue
+                parts = [x.strip() for x in line.split("|")]
+                name = parts[0][:60]
+                try: target = int(parts[1].replace(",","")) if len(parts) > 1 else 0
+                except Exception: target = 0
+                if len(parts) > 3 or not name or target < 1 or target > 1000000:
+                    bad.append({"line":n,"text":line.strip()[:80]}); continue
+                unit = (parts[2] if len(parts) > 2 and parts[2] else "times")[:30]
+                if name.casefold() in seen: skipped.append({"line":n,"name":name}); continue
+                seen.add(name.casefold()); added.append({"line":n,"name":name,"target":target,"unit":unit})
+            if not dry:
+                for a in added:
+                    mx = db.execute("SELECT COALESCE(MAX(sort),-1)+1 FROM activities").fetchone()[0]
+                    db.execute("INSERT INTO activities(name,target,unit,sort,active) VALUES(?,?,?,?,1)", (a["name"],a["target"],a["unit"],mx))
+            return self.send(200, {"dry":dry,"added":added,"skipped":skipped,"bad":bad, **lst()})
         if p == "/api/admin/reorder":
             ids = b.get("ids", [])
             if isinstance(ids, list):

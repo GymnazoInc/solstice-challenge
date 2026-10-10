@@ -4,13 +4,13 @@
 body{margin:0;font-family:'Outfit',system-ui,sans-serif;font-size:19px;background:#0f1b3d;color:#f7efdf;padding:16px}
 .w{max-width:640px;margin:0 auto}h1{font-family:'Fraunces',Georgia,serif;font-size:28px;margin:8px 0}
 .c{background:#16264f;border:1.5px solid rgba(227,176,75,.4);border-radius:18px;padding:16px;margin:14px 0}
-label{display:block;font-weight:600;margin-top:10px}input[type=text],input[type=password],input[type=number]{width:100%;font-size:20px;min-height:56px;padding:10px 14px;border:3px solid #bcd6f2;border-radius:14px;margin-top:4px;font-family:inherit}
+label{display:block;font-weight:600;margin-top:10px}input[type=text],input[type=password],textarea{width:100%;font-size:19px;min-height:160px;padding:10px 14px;border:3px solid #bcd6f2;border-radius:14px;margin-top:8px;font-family:inherit}input[type=number]{width:100%;font-size:20px;min-height:56px;padding:10px 14px;border:3px solid #bcd6f2;border-radius:14px;margin-top:4px;font-family:inherit}
 button{font:inherit;font-weight:700;min-height:56px;padding:10px 16px;border:0;border-radius:14px;background:#bcd6f2;color:#0f1b3d;cursor:pointer;margin:6px 6px 0 0}button.g{background:#e3b04b}
 .err{color:#ffb4a8;font-weight:700;min-height:1.3em}.s{color:#bcd6f2;font-size:16px}.off{opacity:.55}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row label{flex:1;min-width:120px}
 </style></head><body><div class="w"><h1>☀️ Studio Admin</h1><div class="s">Winter Solstice Challenge · manage goals</div>
 <div class="c" id="lg"><label>Admin password<input id="pw" type="password" autocomplete="current-password"></label><div class="err" id="e"></div><button class="g" id="in">Log in</button></div>
-<div id="ad" style="display:none"><div class="c"><b>Add a new goal</b><div id="newf"></div></div><div id="list"></div><button id="out">Log out</button></div></div>
+<div id="ad" style="display:none"><div class="c"><b>Add a new goal</b><div id="newf"></div></div><div class="c"><b>Bulk add (paste a list)</b><div class="s">One per line: name | target | unit &nbsp;(unit is optional)<br>Example: 100 Jump Rope | 100 | minutes</div><textarea id="bulk" rows="8" placeholder="1000 Jumps | 1000 | jumps&#10;50 Squats | 50 | squats"></textarea><button id="bprev">Preview</button><button class="g" id="badd">Add all</button><div id="bres" class="s" style="margin-top:8px"></div></div><div id="list"></div><button id="out">Log out</button></div></div>
 <script>
 let PW=sessionStorage.getItem('apw')||'';const $=i=>document.getElementById(i);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -26,6 +26,11 @@ function draw(){$('newf').innerHTML=form(null)+'<button class="g" id="add">Add g
 async function save(id,active){const k=id||'n';const a=id?ACTS.find(x=>x.id===id):null;const {ok,j}=await call('save',{id:id,name:$('n'+k).value,target:$('t'+k).value,unit:$('u'+k).value,active:active===undefined?(a?a.active:true):active});if(!ok){$('e'+(id||'n')).textContent=j.error||'Error';if(!id)$('en').textContent=j.error;return}ACTS=j.activities;draw()}
 async function mv(i,d){const j2=i+d;if(j2<0||j2>=ACTS.length)return;const ids=ACTS.map(a=>a.id);[ids[i],ids[j2]]=[ids[j2],ids[i]];const {ok,j}=await call('reorder',{ids});if(ok){ACTS=j.activities;draw()}}
 async function enter(){const {ok,j}=await call('list');if(!ok){$('e').textContent=j.error||'Error';PW='';sessionStorage.removeItem('apw');return}sessionStorage.setItem('apw',PW);ACTS=j.activities;$('lg').style.display='none';$('ad').style.display='block';draw()}
+async function bulk(dry){const {ok,j}=await call('bulk',{text:$('bulk').value,dry:dry});if(!ok){$('bres').textContent=j.error||'Error';return}
+ const L=(t,x)=>x.length?'<br>'+t+': '+x.map(esc).join('; '):'';
+ $('bres').innerHTML=(dry?'<b>Preview (nothing saved yet):</b> ':'<b>Done:</b> ')+j.added.length+' '+(dry?'will be added':'added')+', '+j.skipped.length+' skipped (already exist), '+j.bad.length+' bad line(s).'+L(dry?'Will add':'Added',j.added.map(a=>a.name+' ('+a.target+' '+a.unit+')'))+L('Skipped duplicates',j.skipped.map(s=>'line '+s.line+' '+s.name))+L('Bad lines (fix these)',j.bad.map(x=>'line '+x.line+': '+x.text));
+ if(!dry){ACTS=j.activities;$('bulk').value='';draw()}}
+$('bprev').onclick=()=>bulk(true);$('badd').onclick=()=>bulk(false);
 $('in').onclick=()=>{PW=$('pw').value;enter()};$('out').onclick=()=>{sessionStorage.removeItem('apw');location.reload()};
 if(PW)enter();
 </script></body></html>
