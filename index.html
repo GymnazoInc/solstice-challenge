@@ -1,0 +1,106 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gymnazo Winter Solstice Challenge</title>
+<style>
+:root{--ink:#12315a;--blue:#2f6fb3;--ice:#e8f2fb;--gold:#e0a82e;--card:#fff}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);background:linear-gradient(180deg,#dcecf9,#f6fbff 60%);min-height:100vh;font-size:18px}
+.wrap{max-width:560px;margin:0 auto;padding:16px 16px 60px}
+header{text-align:center;padding:22px 0 8px}header .sun{font-size:40px;color:var(--gold)}
+h1{margin:4px 0;font-size:26px}h1 small{display:block;font-size:15px;font-weight:500;color:var(--blue)}
+.card{background:var(--card);border-radius:20px;padding:18px;margin:14px 0;box-shadow:0 4px 18px rgba(30,80,140,.12)}
+h2{margin:0 0 10px;font-size:20px}
+input[type=text],input[type=password],input[type=tel],textarea{width:100%;font-size:18px;padding:14px;border:2px solid #c5d9ee;border-radius:14px;margin:6px 0;font-family:inherit;color:var(--ink)}
+button{font:inherit;font-weight:700;border:0;border-radius:14px;padding:15px 18px;min-height:52px;background:var(--blue);color:#fff;width:100%;cursor:pointer}
+button.alt{background:var(--ice);color:var(--ink)}button.gold{background:var(--gold);color:#3a2a00}
+.small{font-size:14px;color:#52709a}.err{color:#b3261e;font-weight:600;min-height:1.3em}
+.bar{height:22px;background:var(--ice);border-radius:12px;overflow:hidden}.bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--gold));width:0;transition:width .6s}
+.stats{display:flex;gap:8px;margin-top:12px}.stats div{flex:1;background:var(--ice);border-radius:14px;padding:10px;text-align:center}.stats b{display:block;font-size:26px}
+.check{display:flex;align-items:center;gap:14px;font-weight:700;padding:14px;border-radius:16px;background:var(--ice);cursor:pointer}
+.check input{width:36px;height:36px;accent-color:var(--gold);flex:none}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:8px}
+.grid button{padding:0;min-height:40px;font-size:13px;background:var(--ice);color:var(--ink);border-radius:10px}
+.grid button.on{background:var(--gold);color:#3a2a00}.grid button.fut{opacity:.35}.grid button.sel{outline:3px solid var(--blue)}
+.badges{display:flex;flex-wrap:wrap;gap:8px}.badge{padding:8px 12px;border-radius:20px;background:var(--ice);font-size:14px;opacity:.5}.badge.got{background:var(--gold);color:#3a2a00;opacity:1;font-weight:700}
+.win{padding:8px 0;border-bottom:1px solid #e3edf7;font-size:16px}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:9}
+#toast{position:fixed;left:12px;right:12px;top:16px;background:var(--gold);color:#3a2a00;padding:16px;border-radius:16px;font-weight:800;text-align:center;z-index:10;display:none;font-size:20px}
+.hide{display:none}
+nav{display:flex;gap:6px;position:sticky;top:0;z-index:5;background:#eaf4fcee;padding:8px 0;backdrop-filter:blur(6px)}
+nav button{background:#fff;color:var(--ink);padding:10px 4px;font-size:15px;box-shadow:0 2px 8px rgba(30,80,140,.1)}nav button.act{background:var(--blue);color:#fff}
+.lb{display:flex;align-items:center;gap:10px;padding:12px 10px;border-radius:12px;font-size:17px}.lb:nth-child(even){background:#f3f8fd}
+.lb.me{background:#fff3cf!important;outline:2px solid var(--gold);font-weight:700}.lb .r{width:34px;font-weight:800;color:var(--blue)}.lb .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lb .s{font-size:14px;color:#52709a;text-align:right}
+</style></head><body>
+<canvas id="confetti"></canvas><div id="toast"></div>
+<div class="wrap">
+<header><div class="sun">☀❄</div><h1>Winter Solstice Challenge<small>Gymnazo · Oct 21 – Dec 21, 2026 · 62 days</small></h1></header>
+
+<nav><button data-t="me" class="act">🏠 My challenge</button><button data-t="lb">📊 Leaderboard</button><button data-t="wins">🏆 Wins wall</button></nav>
+<div id="tab-me">
+<div id="login" class="card hide">
+<h2>Join or log back in</h2>
+<input id="name" type="text" placeholder="Display name" maxlength="24" autocomplete="username">
+<input id="pin" type="tel" inputmode="numeric" maxlength="4" placeholder="4-digit PIN" autocomplete="current-password" style="-webkit-text-security:disc">
+<div class="err" id="lerr"></div>
+<button id="go">Let's go</button>
+<p class="small">New here? Pick any name and a PIN you'll remember — that creates your account. Come back with the same two to log in. No email needed.</p>
+</div>
+
+<div id="app" class="hide">
+<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 id="hi" style="margin:0"></h2><button class="alt" id="out" style="width:auto;min-height:40px;padding:8px 14px">Log out</button></div>
+<div id="pre" class="small"></div></div>
+<div class="card" id="checkcard"><h2 id="dayTitle">Today</h2>
+<label class="check"><input type="checkbox" id="cb"><span>I did today's movement ✔</span></label>
+<textarea id="note" rows="2" maxlength="200" placeholder="Quick note (optional)"></textarea>
+<button id="save" class="gold">Save check-in</button><div class="err" id="cerr"></div>
+<p class="small">Tap any past day below to fill in a day you missed.</p></div>
+<div class="card"><h2>My progress</h2>
+<div class="bar"><i id="fill"></i></div><p id="ptxt" style="margin:8px 0 0;font-weight:700"></p>
+<div class="stats"><div><b id="cur">0</b><span class="small">current streak</span></div><div><b id="lon">0</b><span class="small">longest streak</span></div><div><b id="dn">0</b><span class="small">of 62 days</span></div></div>
+<div class="grid" id="grid"></div></div>
+<div class="card"><h2>My badges</h2><div class="badges" id="badges"></div></div>
+</div>
+</div>
+<div id="tab-lb" class="hide"><div class="card"><h2>📊 Leaderboard</h2><p class="small" style="margin-top:0">Ranked by days completed, then current streak. Everyone is cheering everyone on! 💙</p><div id="lbt">Loading…</div></div></div>
+<div id="tab-wins" class="hide"><div class="card"><h2>🏆 Wins wall</h2><div id="wins" class="small">Loading…</div></div></div>
+</div>
+<script>
+let ME=null,SEL=null;const $=id=>document.getElementById(id);
+async function api(p,b){const r=await fetch(p,b?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}:{});let j={};try{j=await r.json()}catch(e){}return {ok:r.ok,j}}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function fmt(iso){const d=new Date(iso+'T12:00:00');return d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}
+function render(){
+ if(!ME){$('login').classList.remove('hide');$('app').classList.add('hide');return}
+ $('login').classList.add('hide');$('app').classList.remove('hide');
+ $('hi').textContent='Hi, '+ME.name+'!';
+ const t=ME.today;const before=t<ME.start,after=t>ME.end;
+ $('pre').textContent=before?'The challenge starts Oct 21 — you\'re signed up! Check back then.':after?'The challenge has ended — amazing work!':'';
+ if(!SEL||SEL>t)SEL=after?ME.end:t;
+ const open=!before; $('checkcard').classList.toggle('hide',!open);
+ if(open){const done=SEL in ME.days;$('dayTitle').textContent=(SEL===t?'Today · ':'')+fmt(SEL);$('cb').checked=done;$('note').value=ME.days[SEL]||''}
+ $('fill').style.width=(ME.done/ME.total*100)+'%';$('ptxt').textContent=ME.done+' of '+ME.total+' days complete';
+ $('cur').textContent=ME.current;$('lon').textContent=ME.longest;$('dn').textContent=ME.done;
+ let g='';const s=new Date(ME.start+'T12:00:00');
+ for(let i=0;i<ME.total;i++){const d=new Date(s);d.setDate(s.getDate()+i);const iso=d.toISOString().slice(0,10);
+  g+=`<button data-d="${iso}" class="${iso in ME.days?'on':''} ${iso>t?'fut':''} ${iso===SEL?'sel':''}">${d.getMonth()+1}/${d.getDate()}</button>`}
+ $('grid').innerHTML=g;
+ $('grid').querySelectorAll('button').forEach(b=>b.onclick=()=>{if(b.dataset.d<=t){SEL=b.dataset.d;render();$('checkcard').scrollIntoView({behavior:'smooth'})}});
+ $('badges').innerHTML=ME.milestones.map(m=>`<span class="badge ${ME.badges.includes(m.n)?'got':''}">${ME.badges.includes(m.n)?'🏅':'🔒'} ${esc(m.label)}</span>`).join('');
+}
+async function wins(){const {j}=await api('/api/wins');$('wins').innerHTML=(j.wins&&j.wins.length)?`<div style="margin-bottom:6px">${j.members} members taking part</div>`+j.wins.map(w=>`<div class="win">🏅 <b>${esc(w.name)}</b> — ${esc(w.label)} <span class="small">· ${new Date(w.at*1000).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span></div>`).join(''):'No wins yet — be the first!'}
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',3500)}
+$('go').onclick=async()=>{$('lerr').textContent='';const {ok,j}=await api('/api/login',{name:$('name').value,pin:$('pin').value});if(!ok){$('lerr').textContent=j.error||'Something went wrong';return}ME=j;render();if(j.new)toast('Welcome, '+j.name+'! ❄');};
+$('out').onclick=async()=>{await api('/api/logout',{});ME=null;$('pin').value='';render()};
+$('save').onclick=async()=>{$('cerr').textContent='';const {ok,j}=await api('/api/checkin',{date:SEL,done:$('cb').checked,note:$('note').value});if(!ok){$('cerr').textContent=j.error||'Error';return}ME=j;render();
+ if(j.newBadges.length){const m=ME.milestones.find(x=>x.n===j.newBadges[j.newBadges.length-1]);toast('🏅 '+m.label);confetti(j.newBadges.includes(62)?400:150)}else if($('cb').checked){toast('Checked in! ✔');confetti(40)}wins();lb()};
+function confetti(n){const c=$('confetti'),x=c.getContext('2d');c.width=innerWidth;c.height=innerHeight;const cols=['#e0a82e','#2f6fb3','#fff','#9cc8ee','#f5d77a'];
+ const P=[...Array(n)].map(()=>({x:Math.random()*c.width,y:-20-Math.random()*c.height*.4,vx:Math.random()*2-1,vy:2+Math.random()*4,r:4+Math.random()*6,c:cols[Math.random()*5|0],a:Math.random()*6}));let f=0;
+ (function step(){x.clearRect(0,0,c.width,c.height);P.forEach(p=>{p.x+=p.vx+Math.sin(p.a+=.1);p.y+=p.vy;x.fillStyle=p.c;x.fillRect(p.x,p.y,p.r,p.r*1.6)});if(++f<220)requestAnimationFrame(step);else x.clearRect(0,0,c.width,c.height)})()}
+async function lb(){const {j}=await api('/api/leaderboard');if(!j.top||!j.top.length){$('lbt').textContent='No check-ins yet — be the first on the board!';return}
+ const row=r=>`<div class="lb ${r.me?'me':''}"><span class="r">${r.rank<=3?['🥇','🥈','🥉'][r.rank-1]:'#'+r.rank}</span><span class="n">${esc(r.name)}${r.me?' (you)':''}</span><span class="s"><b>${r.done}</b> days<br>🔥 ${r.current} streak</span></div>`;
+ let h=j.top.map(row).join('');
+ if(j.me&&j.me.rank>10)h+='<div class="small" style="text-align:center;margin:6px">· · ·</div>'+row(j.me);
+ else if(!j.me&&ME)h+='<p class="small">Check in to join the board!</p>';
+ $('lbt').innerHTML=h+`<p class="small">${j.total} members on the board</p>`}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('act',x===b));['me','lb','wins'].forEach(t=>$('tab-'+t).classList.toggle('hide',t!==b.dataset.t));if(b.dataset.t==='lb')lb();if(b.dataset.t==='wins')wins();scrollTo(0,0)});
+(async()=>{const {ok,j}=await api('/api/me');if(ok)ME=j;render();wins()})();
+</script></body></html>

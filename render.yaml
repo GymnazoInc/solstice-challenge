@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: solstice
+    runtime: python
+    plan: starter
+    region: oregon
+    buildCommand: "echo ok"
+    startCommand: python3 server.py
+    envVars:
+      - key: DB_PATH
+        value: /var/data/solstice.db
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
