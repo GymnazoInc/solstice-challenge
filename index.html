@@ -1,106 +1,203 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f1b3d">
 <title>Gymnazo Winter Solstice Challenge</title>
+<!-- ui-marker: solstice-ui-v2-midnight-sun -->
 <style>
-:root{--ink:#12315a;--blue:#2f6fb3;--ice:#e8f2fb;--gold:#e0a82e;--card:#fff}
-*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);background:linear-gradient(180deg,#dcecf9,#f6fbff 60%);min-height:100vh;font-size:18px}
-.wrap{max-width:560px;margin:0 auto;padding:16px 16px 60px}
-header{text-align:center;padding:22px 0 8px}header .sun{font-size:40px;color:var(--gold)}
-h1{margin:4px 0;font-size:26px}h1 small{display:block;font-size:15px;font-weight:500;color:var(--blue)}
-.card{background:var(--card);border-radius:20px;padding:18px;margin:14px 0;box-shadow:0 4px 18px rgba(30,80,140,.12)}
-h2{margin:0 0 10px;font-size:20px}
-input[type=text],input[type=password],input[type=tel],textarea{width:100%;font-size:18px;padding:14px;border:2px solid #c5d9ee;border-radius:14px;margin:6px 0;font-family:inherit;color:var(--ink)}
-button{font:inherit;font-weight:700;border:0;border-radius:14px;padding:15px 18px;min-height:52px;background:var(--blue);color:#fff;width:100%;cursor:pointer}
-button.alt{background:var(--ice);color:var(--ink)}button.gold{background:var(--gold);color:#3a2a00}
-.small{font-size:14px;color:#52709a}.err{color:#b3261e;font-weight:600;min-height:1.3em}
-.bar{height:22px;background:var(--ice);border-radius:12px;overflow:hidden}.bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--gold));width:0;transition:width .6s}
-.stats{display:flex;gap:8px;margin-top:12px}.stats div{flex:1;background:var(--ice);border-radius:14px;padding:10px;text-align:center}.stats b{display:block;font-size:26px}
-.check{display:flex;align-items:center;gap:14px;font-weight:700;padding:14px;border-radius:16px;background:var(--ice);cursor:pointer}
-.check input{width:36px;height:36px;accent-color:var(--gold);flex:none}
-.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:8px}
-.grid button{padding:0;min-height:40px;font-size:13px;background:var(--ice);color:var(--ink);border-radius:10px}
-.grid button.on{background:var(--gold);color:#3a2a00}.grid button.fut{opacity:.35}.grid button.sel{outline:3px solid var(--blue)}
-.badges{display:flex;flex-wrap:wrap;gap:8px}.badge{padding:8px 12px;border-radius:20px;background:var(--ice);font-size:14px;opacity:.5}.badge.got{background:var(--gold);color:#3a2a00;opacity:1;font-weight:700}
-.win{padding:8px 0;border-bottom:1px solid #e3edf7;font-size:16px}
-#confetti{position:fixed;inset:0;pointer-events:none;z-index:9}
-#toast{position:fixed;left:12px;right:12px;top:16px;background:var(--gold);color:#3a2a00;padding:16px;border-radius:16px;font-weight:800;text-align:center;z-index:10;display:none;font-size:20px}
-.hide{display:none}
-nav{display:flex;gap:6px;position:sticky;top:0;z-index:5;background:#eaf4fcee;padding:8px 0;backdrop-filter:blur(6px)}
-nav button{background:#fff;color:var(--ink);padding:10px 4px;font-size:15px;box-shadow:0 2px 8px rgba(30,80,140,.1)}nav button.act{background:var(--blue);color:#fff}
-.lb{display:flex;align-items:center;gap:10px;padding:12px 10px;border-radius:12px;font-size:17px}.lb:nth-child(even){background:#f3f8fd}
-.lb.me{background:#fff3cf!important;outline:2px solid var(--gold);font-weight:700}.lb .r{width:34px;font-weight:800;color:var(--blue)}.lb .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lb .s{font-size:14px;color:#52709a;text-align:right}
+:root{--navy:#0f1b3d;--navy2:#16264f;--navy3:#1f3266;--deep:#0b1430;--gold:#e3b04b;--gold2:#f2cf7e;--cream:#f7efdf;--ink:#1a2547;--ice:#bcd6f2;--card:rgba(255,255,255,.07);--serif:'Fraunces',Georgia,'Times New Roman',serif;--sans:'Outfit',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{background:var(--deep)}
+body{margin:0;font-family:var(--sans);color:var(--cream);font-size:19px;line-height:1.4;min-height:100vh;background:radial-gradient(ellipse 130% 60% at 50% 0%,var(--navy3) 0%,var(--navy) 55%,var(--deep) 100%) fixed}
+.wrap{max-width:600px;margin:0 auto;padding:12px 14px 80px;position:relative;z-index:2}
+#snow,#confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+#snow{z-index:1}#confetti{z-index:20}
+.stars{position:fixed;inset:0;z-index:0;pointer-events:none;background-image:radial-gradient(1.5px 1.5px at 12% 14%,#f7efdf 50%,transparent),radial-gradient(1px 1px at 28% 8%,#f7efdf 50%,transparent),radial-gradient(1.4px 1.4px at 72% 12%,#f7efdf 50%,transparent),radial-gradient(1px 1px at 88% 22%,#f7efdf 50%,transparent),radial-gradient(1.2px 1.2px at 52% 5%,#f7efdf 50%,transparent),radial-gradient(1px 1px at 6% 36%,#f7efdf 50%,transparent),radial-gradient(1.2px 1.2px at 94% 44%,#f7efdf 50%,transparent);opacity:.7;animation:tw 5s ease-in-out infinite alternate}
+@keyframes tw{to{opacity:.35}}
+header{text-align:center;padding:10px 0 4px}
+.sun{width:170px;height:78px;display:block;margin:0 auto}
+.sun .disc{transform-origin:170px 140px;animation:rise 1.6s cubic-bezier(.2,1.3,.4,1) both}
+@keyframes rise{from{transform:translateY(40px) scale(.7);opacity:0}to{transform:none;opacity:1}}
+h1{font-family:var(--serif);font-weight:600;margin:6px 0 0;line-height:1;letter-spacing:.05em;font-size:34px;color:var(--cream)}
+h1 span{display:block;font-size:22px;letter-spacing:.24em;color:var(--gold);font-weight:500;margin-top:8px}
+.dates{display:inline-block;margin-top:12px;background:var(--gold);color:var(--navy);font-weight:600;letter-spacing:.1em;padding:6px 20px;border-radius:30px;font-size:16px}
+.count{margin:14px auto 0;font-family:var(--serif);font-style:italic;font-size:22px;color:var(--gold2)}
+nav{display:flex;gap:8px;position:sticky;top:0;z-index:8;padding:10px 0;margin-top:8px;background:linear-gradient(var(--navy),rgba(15,27,61,.85));backdrop-filter:blur(8px)}
+nav button{flex:1;background:var(--navy2);color:var(--cream);border:2px solid rgba(227,176,75,.35);min-height:60px;font-size:17px;padding:6px 4px;line-height:1.15}
+nav button .e{display:block;font-size:22px}
+nav button.act{background:var(--gold);color:var(--navy);border-color:var(--gold)}
+.card{background:var(--card);border:1.5px solid rgba(227,176,75,.4);border-radius:22px;padding:20px;margin:16px 0;box-shadow:0 8px 28px rgba(0,0,0,.35);backdrop-filter:blur(4px)}
+.card.cream{background:var(--cream);color:var(--ink);border-color:transparent}
+h2{font-family:var(--serif);font-weight:600;margin:0 0 12px;font-size:26px;color:var(--cream)}
+.cream h2{color:var(--navy)}
+label.l{display:block;font-weight:600;margin-top:12px;font-size:19px}
+input[type=text],input[type=password],input[type=tel],textarea{width:100%;font-size:22px;min-height:60px;padding:12px 16px;border:3px solid var(--ice);border-radius:16px;margin:6px 0;font-family:inherit;color:var(--ink);background:#fff}
+input:focus,textarea:focus,button:focus-visible{outline:4px solid var(--gold);outline-offset:2px}
+textarea{font-size:19px;min-height:84px}
+button{font:inherit;font-weight:700;font-size:20px;border:0;border-radius:18px;padding:14px 18px;min-height:60px;width:100%;cursor:pointer;color:var(--navy);background:var(--ice);transition:transform .15s cubic-bezier(.3,1.8,.5,1),box-shadow .15s;box-shadow:0 4px 0 rgba(0,0,0,.25)}
+button:active{transform:scale(.94) translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.25)}
+button.gold{background:linear-gradient(#f6d68b,var(--gold));color:var(--navy)}
+button.ghost{background:transparent;color:var(--cream);border:2px solid rgba(247,239,223,.5);box-shadow:none}
+button.big{min-height:96px;font-size:30px;border-radius:26px;font-family:var(--serif)}
+button.pulse{animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 4px 0 rgba(0,0,0,.25),0 0 0 12px rgba(227,176,75,.25)}}
+.small{font-size:17px;color:var(--ice)}.cream .small{color:#4a5a85}
+.err{color:#ffb4a8;font-weight:700;min-height:1.4em;font-size:19px;margin:4px 0}.cream .err{color:#b3261e}
+.hide{display:none!important}
+.choice{display:grid;gap:14px}.choice button{min-height:84px;font-size:24px}.choice button small{display:block;font-weight:500;font-size:16px;opacity:.85}
+.hello{display:flex;justify-content:space-between;align-items:center;gap:10px}.hello h2{margin:0}.hello button{width:auto;min-height:56px;padding:8px 18px;font-size:17px}
+.banner{margin-top:10px;font-family:var(--serif);font-style:italic;font-size:21px;color:var(--gold2)}
+.done-msg{text-align:center;font-family:var(--serif);font-size:26px;color:var(--navy);margin:0 0 12px}
+.ringbox{display:flex;align-items:center;gap:16px}
+.ring{width:132px;height:132px;flex:none;position:relative}
+.ring svg{transform:rotate(-90deg)}.ring circle{fill:none;stroke-width:12;stroke-linecap:round}
+.ring .bg{stroke:rgba(255,255,255,.12)}.ring .fg{stroke:var(--gold);transition:stroke-dashoffset .9s cubic-bezier(.3,1.3,.5,1)}
+.ring .mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--serif);font-size:32px;font-weight:600;line-height:1}
+.ring .mid small{font-family:var(--sans);font-size:14px;color:var(--ice);font-weight:400}
+.bar{height:14px;background:rgba(255,255,255,.12);border-radius:10px;overflow:hidden;margin-top:10px}.bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ice),var(--gold));transition:width .9s}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.stat{background:rgba(255,255,255,.08);border-radius:18px;padding:12px;text-align:center}.stat b{display:block;font-family:var(--serif);font-size:32px;color:var(--gold2)}
+.flame{display:inline-block;transform-origin:50% 90%;animation:flick 1.4s ease-in-out infinite alternate}
+@keyframes flick{from{transform:scale(var(--s,1)) rotate(-4deg)}to{transform:scale(calc(var(--s,1)*1.08)) rotate(4deg)}}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:10px}
+.grid button{padding:0;min-height:56px;font-size:15px;background:rgba(255,255,255,.1);color:var(--cream);border-radius:14px;box-shadow:none;line-height:1.1}
+.grid button.on{background:var(--gold);color:var(--navy)}.grid button.fut{opacity:.3}.grid button.sel{outline:4px solid var(--ice)}.grid button.today{border:3px solid var(--gold2)}
+.badges{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.badge{border-radius:20px;padding:14px 8px;text-align:center;background:rgba(255,255,255,.06);border:2px dashed rgba(188,214,242,.35);font-size:17px}
+.badge .ic{display:block;font-size:44px;filter:grayscale(1) opacity(.45)}
+.badge.got{background:linear-gradient(#f6d68b,var(--gold));color:var(--navy);border:2px solid var(--gold2);font-weight:700;animation:pop .6s cubic-bezier(.3,1.8,.5,1)}.badge.got .ic{filter:none}
+@keyframes pop{from{transform:scale(.7)}}
+.lb{display:flex;align-items:center;gap:10px;padding:14px 10px;border-radius:16px;font-size:20px;min-height:64px}.lb:nth-child(even){background:rgba(255,255,255,.05)}
+.lb.top1{background:rgba(227,176,75,.22)!important}
+.lb.me{outline:3px solid var(--gold);font-weight:700}
+.lb .r{width:48px;text-align:center;font-size:30px;font-weight:700;color:var(--gold2)}.lb .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lb .s{font-size:16px;color:var(--ice);text-align:right}
+.win{padding:14px 0;border-bottom:1px solid rgba(255,255,255,.12);font-size:19px}
+#toast{position:fixed;left:12px;right:12px;top:14px;max-width:560px;margin:0 auto;background:var(--gold);color:var(--navy);padding:20px;border-radius:20px;font-weight:700;text-align:center;z-index:30;display:none;font-size:24px;font-family:var(--serif);box-shadow:0 10px 30px rgba(0,0,0,.5)}
+#toast.show{display:block;animation:drop .5s cubic-bezier(.3,1.6,.5,1)}
+@keyframes drop{from{transform:translateY(-80px);opacity:0}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style></head><body>
-<canvas id="confetti"></canvas><div id="toast"></div>
+<div class="stars"></div><canvas id="snow"></canvas><canvas id="confetti"></canvas><div id="toast" role="status" aria-live="polite"></div>
 <div class="wrap">
-<header><div class="sun">☀❄</div><h1>Winter Solstice Challenge<small>Gymnazo · Oct 21 – Dec 21, 2026 · 62 days</small></h1></header>
+<header>
+<svg class="sun" viewBox="0 0 340 155" aria-hidden="true"><defs><radialGradient id="g" cx="50%" cy="100%" r="60%"><stop offset="0" stop-color="#f6d68b"/><stop offset="1" stop-color="#e3b04b"/></radialGradient></defs>
+<g stroke="#e3b04b" stroke-width="2.4" stroke-linecap="round"><line x1="237.6" y1="121.9" x2="253.1" y2="117.7"/><line x1="230.6" y1="105" x2="256.6" y2="90"/><line x1="219.5" y1="90.5" x2="230.8" y2="79.2"/><line x1="205" y1="79.4" x2="220" y2="53.4"/><line x1="188.1" y1="72.4" x2="192.3" y2="56.9"/><line x1="170" y1="70" x2="170" y2="40"/><line x1="151.9" y1="72.4" x2="147.7" y2="56.9"/><line x1="135" y1="79.4" x2="120" y2="53.4"/><line x1="120.5" y1="90.5" x2="109.2" y2="79.2"/><line x1="109.4" y1="105" x2="83.4" y2="90"/><line x1="102.4" y1="121.9" x2="86.9" y2="117.7"/></g>
+<circle cx="170" cy="140" r="86" fill="none" stroke="#e3b04b" stroke-width="1" opacity=".45"/><path class="disc" d="M110 140 A60 60 0 0 1 230 140 Z" fill="url(#g)"/>
+<line x1="20" y1="140.5" x2="320" y2="140.5" stroke="#f7efdf" stroke-width="1.4" opacity=".7"/><line x1="70" y1="148" x2="270" y2="148" stroke="#f7efdf" stroke-width="1" opacity=".35"/></svg>
+<h1>WINTER SOLSTICE<span>CHALLENGE</span></h1>
+<div class="dates">OCT 21 – DEC 21, 2026</div>
+<div class="count" id="count">&nbsp;</div>
+</header>
 
-<nav><button data-t="me" class="act">🏠 My challenge</button><button data-t="lb">📊 Leaderboard</button><button data-t="wins">🏆 Wins wall</button></nav>
+<nav><button data-t="me" class="act"><span class="e">🏠</span>My Page</button><button data-t="lb"><span class="e">🏆</span>Leaderboard</button><button data-t="wins"><span class="e">🎉</span>Wins</button></nav>
+
 <div id="tab-me">
 <div id="login" class="card hide">
-<h2>Join or log back in</h2>
-<input id="name" type="text" placeholder="Display name" maxlength="24" autocomplete="username">
-<input id="pin" type="tel" inputmode="numeric" maxlength="4" placeholder="4-digit PIN" autocomplete="current-password" style="-webkit-text-security:disc">
-<div class="err" id="lerr"></div>
-<button id="go">Let's go</button>
-<p class="small">New here? Pick any name and a PIN you'll remember — that creates your account. Come back with the same two to log in. No email needed.</p>
+ <div id="choose">
+  <h2>Welcome! ❄️ Let's get started</h2>
+  <div class="choice">
+   <button class="gold pulse" id="pickNew">I'm new<small>Create my account</small></button>
+   <button id="pickOld">I already signed up<small>Log in</small></button>
+  </div>
+ </div>
+ <div id="formbox" class="hide">
+  <h2 id="ftitle"></h2>
+  <label class="l" for="name">Your name</label>
+  <input id="name" type="text" placeholder="Type your name" maxlength="24" autocomplete="username" autocapitalize="words">
+  <label class="l" for="pin">Your 4-digit PIN <span class="small">(4 numbers)</span></label>
+  <input id="pin" type="tel" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="current-password" style="-webkit-text-security:disc;letter-spacing:.4em">
+  <div class="err" id="lerr" role="alert"></div>
+  <button id="go" class="gold big" style="min-height:76px;font-size:26px"></button>
+  <p class="small" id="fhint"></p>
+  <button class="ghost" id="back" style="margin-top:6px">← Go back</button>
+ </div>
+ <p class="small" style="margin-bottom:0">Forgot your PIN? Ask the studio.</p>
 </div>
 
 <div id="app" class="hide">
-<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 id="hi" style="margin:0"></h2><button class="alt" id="out" style="width:auto;min-height:40px;padding:8px 14px">Log out</button></div>
-<div id="pre" class="small"></div></div>
-<div class="card" id="checkcard"><h2 id="dayTitle">Today</h2>
-<label class="check"><input type="checkbox" id="cb"><span>I did today's movement ✔</span></label>
-<textarea id="note" rows="2" maxlength="200" placeholder="Quick note (optional)"></textarea>
-<button id="save" class="gold">Save check-in</button><div class="err" id="cerr"></div>
-<p class="small">Tap any past day below to fill in a day you missed.</p></div>
-<div class="card"><h2>My progress</h2>
-<div class="bar"><i id="fill"></i></div><p id="ptxt" style="margin:8px 0 0;font-weight:700"></p>
-<div class="stats"><div><b id="cur">0</b><span class="small">current streak</span></div><div><b id="lon">0</b><span class="small">longest streak</span></div><div><b id="dn">0</b><span class="small">of 62 days</span></div></div>
-<div class="grid" id="grid"></div></div>
-<div class="card"><h2>My badges</h2><div class="badges" id="badges"></div></div>
+<div class="card"><div class="hello"><h2 id="hi"></h2><button class="ghost" id="out">Log out</button></div>
+<div id="pre" class="banner"></div></div>
+
+<div class="card cream" id="checkcard"><h2 id="dayTitle">Today</h2>
+<div class="done-msg hide" id="doneMsg">✅ You did it! Great job!</div>
+<button id="save" class="gold big pulse">I did it today!</button><div class="err" id="cerr" role="alert"></div>
+<label class="l" for="note">Add a note <span class="small">(if you like)</span></label>
+<textarea id="note" rows="2" maxlength="200" placeholder="How did it feel?"></textarea>
+<button class="ghost hide" id="undo" style="color:var(--navy);border-color:#7d8db5;margin-top:8px">Undo this check-in</button>
+<p class="small">Missed a day? Tap it in the calendar below.</p></div>
+
+<div class="card"><h2>My Progress</h2>
+<div class="ringbox"><div class="ring"><svg width="132" height="132" viewBox="0 0 132 132"><circle class="bg" cx="66" cy="66" r="56"/><circle class="fg" id="rfg" cx="66" cy="66" r="56" stroke-dasharray="351.86" stroke-dashoffset="351.86"/></svg><div class="mid"><span id="dn">0</span><small>of 62 days</small></div></div>
+<div style="flex:1"><div id="ptxt" style="font-weight:700;font-size:20px"></div><div class="bar"><i id="fill"></i></div><div class="small" id="enc" style="margin-top:8px"></div></div></div>
+<div class="stats"><div class="stat"><b><span class="flame" id="fl">🔥</span> <span id="cur">0</span></b><span class="small">days in a row</span></div><div class="stat"><b>⭐ <span id="lon">0</span></b><span class="small">best streak</span></div></div>
+</div>
+<div class="card"><h2>My Calendar</h2><div class="small">Gold = done. Tap a day to fill it in.</div><div class="grid" id="grid"></div></div>
+<div class="card"><h2>My Badges</h2><div class="badges" id="badges"></div></div>
 </div>
 </div>
-<div id="tab-lb" class="hide"><div class="card"><h2>📊 Leaderboard</h2><p class="small" style="margin-top:0">Ranked by days completed, then current streak. Everyone is cheering everyone on! 💙</p><div id="lbt">Loading…</div></div></div>
-<div id="tab-wins" class="hide"><div class="card"><h2>🏆 Wins wall</h2><div id="wins" class="small">Loading…</div></div></div>
+<div id="tab-lb" class="hide"><div class="card"><h2>🏆 Leaderboard</h2><p class="small" style="margin-top:0">Most days done are at the top. Everyone is cheering each other on! 💙</p><div id="lbt">Loading…</div></div></div>
+<div id="tab-wins" class="hide"><div class="card"><h2>🎉 Wins Wall</h2><div id="wins" class="small">Loading…</div></div></div>
 </div>
 <script>
-let ME=null,SEL=null;const $=id=>document.getElementById(id);
-async function api(p,b){const r=await fetch(p,b?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}:{});let j={};try{j=await r.json()}catch(e){}return {ok:r.ok,j}}
+let ME=null,SEL=null,MODE='new';const $=id=>document.getElementById(id);
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+async function api(p,b){let r;try{r=await fetch(p,b?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}:{})}catch(e){return {ok:false,j:{error:'Can\'t reach the internet. Please try again.'}}}let j={};try{j=await r.json()}catch(e){}return {ok:r.ok,j}}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function fmt(iso){const d=new Date(iso+'T12:00:00');return d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}
+const ICONS={1:'❄️',7:'⛄',14:'🔥',21:'⭐',30:'🌙',45:'🏔️',62:'☀️'};
+function dayNum(a,b){const f=s=>{const p=s.split('-');return Date.UTC(+p[0],p[1]-1,+p[2])};return Math.round((f(a)-f(b))/864e5)}
+function laToday(){return new Date().toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles'})}
+function countdown(){const t=ME?ME.today:laToday(),s=ME?ME.start:'2026-10-21',e=ME?ME.end:'2026-12-21';let m;
+ if(t<s){const n=dayNum(s,t);m=n===1?'Starts tomorrow! ☀️':'Starts in '+n+' days ❄️'}else if(t>e)m='The challenge is complete! 🎉';else m='Day '+(dayNum(t,s)+1)+' of 62 ☀️';$('count').textContent=m}
+function setMode(m){MODE=m;$('choose').classList.add('hide');$('formbox').classList.remove('hide');$('lerr').textContent='';
+ $('ftitle').textContent=m==='new'?'Create my account':'Log in';$('go').textContent=m==='new'?'Create my account':'Log in';
+ $('fhint').textContent=m==='new'?'Pick any name and a PIN you will remember. You will use the same two to log in next time.':'Type the same name and PIN you picked before.';
+ $('pin').autocomplete=m==='new'?'new-password':'current-password';$('name').focus()}
+$('pickNew').onclick=()=>setMode('new');$('pickOld').onclick=()=>setMode('old');
+$('back').onclick=()=>{$('formbox').classList.add('hide');$('choose').classList.remove('hide');$('lerr').textContent=''};
 function render(){
+ countdown();
  if(!ME){$('login').classList.remove('hide');$('app').classList.add('hide');return}
  $('login').classList.add('hide');$('app').classList.remove('hide');
- $('hi').textContent='Hi, '+ME.name+'!';
+ $('hi').textContent='Hi, '+ME.name+'! 👋';
  const t=ME.today;const before=t<ME.start,after=t>ME.end;
- $('pre').textContent=before?'The challenge starts Oct 21 — you\'re signed up! Check back then.':after?'The challenge has ended — amazing work!':'';
+ $('pre').textContent=before?'You\'re signed up! The challenge starts Oct 21. See you then ☀️':after?'The challenge is over. Amazing work!':'';
  if(!SEL||SEL>t)SEL=after?ME.end:t;
  const open=!before; $('checkcard').classList.toggle('hide',!open);
- if(open){const done=SEL in ME.days;$('dayTitle').textContent=(SEL===t?'Today · ':'')+fmt(SEL);$('cb').checked=done;$('note').value=ME.days[SEL]||''}
- $('fill').style.width=(ME.done/ME.total*100)+'%';$('ptxt').textContent=ME.done+' of '+ME.total+' days complete';
+ if(open){const done=SEL in ME.days;$('dayTitle').textContent=SEL===t?'Today · '+fmt(SEL):fmt(SEL);$('note').value=ME.days[SEL]||'';
+  $('doneMsg').classList.toggle('hide',!done);$('undo').classList.toggle('hide',!done);
+  $('save').textContent=done?'Save my note':(SEL===t?'I did it today!':'I did it on this day!');$('save').classList.toggle('pulse',!done)}
+ const C=351.86;$('rfg').style.strokeDashoffset=C*(1-ME.done/ME.total);
+ $('fill').style.width=(ME.done/ME.total*100)+'%';$('ptxt').textContent=ME.done+' of '+ME.total+' days done';
+ $('enc').textContent=ME.done===0?'Your first day is the hardest. You can do it!':ME.done<7?'Great start! Keep it going.':ME.done<21?'You\'re building a habit. Wonderful!':ME.done<45?'You\'re on fire! Keep shining.':'Almost there. So proud of you!';
  $('cur').textContent=ME.current;$('lon').textContent=ME.longest;$('dn').textContent=ME.done;
+ $('fl').style.setProperty('--s',Math.min(2.2,1+ME.current*.06));
  let g='';const s=new Date(ME.start+'T12:00:00');
  for(let i=0;i<ME.total;i++){const d=new Date(s);d.setDate(s.getDate()+i);const iso=d.toISOString().slice(0,10);
-  g+=`<button data-d="${iso}" class="${iso in ME.days?'on':''} ${iso>t?'fut':''} ${iso===SEL?'sel':''}">${d.getMonth()+1}/${d.getDate()}</button>`}
+  g+=`<button data-d="${iso}" aria-label="${fmt(iso)}" class="${iso in ME.days?'on':''} ${iso>t?'fut':''} ${iso===SEL?'sel':''} ${iso===t?'today':''}">${d.getMonth()+1}/${d.getDate()}</button>`}
  $('grid').innerHTML=g;
- $('grid').querySelectorAll('button').forEach(b=>b.onclick=()=>{if(b.dataset.d<=t){SEL=b.dataset.d;render();$('checkcard').scrollIntoView({behavior:'smooth'})}});
- $('badges').innerHTML=ME.milestones.map(m=>`<span class="badge ${ME.badges.includes(m.n)?'got':''}">${ME.badges.includes(m.n)?'🏅':'🔒'} ${esc(m.label)}</span>`).join('');
+ $('grid').querySelectorAll('button').forEach(b=>b.onclick=()=>{if(b.dataset.d<=t){SEL=b.dataset.d;render();$('checkcard').scrollIntoView({behavior:RM?'auto':'smooth'})}});
+ $('badges').innerHTML=ME.milestones.map(m=>{const got=ME.badges.includes(m.n);return `<div class="badge ${got?'got':''}"><span class="ic">${got?(ICONS[m.n]||'🏅'):'🔒'}</span>${esc(m.label)}</div>`}).join('');
 }
-async function wins(){const {j}=await api('/api/wins');$('wins').innerHTML=(j.wins&&j.wins.length)?`<div style="margin-bottom:6px">${j.members} members taking part</div>`+j.wins.map(w=>`<div class="win">🏅 <b>${esc(w.name)}</b> — ${esc(w.label)} <span class="small">· ${new Date(w.at*1000).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span></div>`).join(''):'No wins yet — be the first!'}
-function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',3500)}
-$('go').onclick=async()=>{$('lerr').textContent='';const {ok,j}=await api('/api/login',{name:$('name').value,pin:$('pin').value});if(!ok){$('lerr').textContent=j.error||'Something went wrong';return}ME=j;render();if(j.new)toast('Welcome, '+j.name+'! ❄');};
-$('out').onclick=async()=>{await api('/api/logout',{});ME=null;$('pin').value='';render()};
-$('save').onclick=async()=>{$('cerr').textContent='';const {ok,j}=await api('/api/checkin',{date:SEL,done:$('cb').checked,note:$('note').value});if(!ok){$('cerr').textContent=j.error||'Error';return}ME=j;render();
- if(j.newBadges.length){const m=ME.milestones.find(x=>x.n===j.newBadges[j.newBadges.length-1]);toast('🏅 '+m.label);confetti(j.newBadges.includes(62)?400:150)}else if($('cb').checked){toast('Checked in! ✔');confetti(40)}wins();lb()};
-function confetti(n){const c=$('confetti'),x=c.getContext('2d');c.width=innerWidth;c.height=innerHeight;const cols=['#e0a82e','#2f6fb3','#fff','#9cc8ee','#f5d77a'];
- const P=[...Array(n)].map(()=>({x:Math.random()*c.width,y:-20-Math.random()*c.height*.4,vx:Math.random()*2-1,vy:2+Math.random()*4,r:4+Math.random()*6,c:cols[Math.random()*5|0],a:Math.random()*6}));let f=0;
- (function step(){x.clearRect(0,0,c.width,c.height);P.forEach(p=>{p.x+=p.vx+Math.sin(p.a+=.1);p.y+=p.vy;x.fillStyle=p.c;x.fillRect(p.x,p.y,p.r,p.r*1.6)});if(++f<220)requestAnimationFrame(step);else x.clearRect(0,0,c.width,c.height)})()}
-async function lb(){const {j}=await api('/api/leaderboard');if(!j.top||!j.top.length){$('lbt').textContent='No check-ins yet — be the first on the board!';return}
- const row=r=>`<div class="lb ${r.me?'me':''}"><span class="r">${r.rank<=3?['🥇','🥈','🥉'][r.rank-1]:'#'+r.rank}</span><span class="n">${esc(r.name)}${r.me?' (you)':''}</span><span class="s"><b>${r.done}</b> days<br>🔥 ${r.current} streak</span></div>`;
+async function wins(){const {j}=await api('/api/wins');$('wins').innerHTML=(j.wins&&j.wins.length)?`<div style="margin-bottom:6px">${j.members} members taking part</div>`+j.wins.map(w=>`<div class="win">🏅 <b>${esc(w.name)}</b> — ${esc(w.label)} <span class="small">· ${new Date(w.at*1000).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span></div>`).join(''):'No wins yet. Be the first! 🌟'}
+let tt;function toast(m){const t=$('toast');t.textContent=m;t.className='show';clearTimeout(tt);tt=setTimeout(()=>t.className='',4000)}
+$('go').onclick=async()=>{$('lerr').textContent='';const {ok,j}=await api(MODE==='new'?'/api/register':'/api/login',{name:$('name').value,pin:$('pin').value});if(!ok){$('lerr').textContent=j.error||'Something went wrong. Please try again.';return}ME=j;SEL=null;render();if(j.new){toast('Welcome, '+j.name+'! ❄️');confetti(80)}else toast('Welcome back, '+j.name+'! ☀️');};
+$('out').onclick=async()=>{await api('/api/logout',{});ME=null;$('pin').value='';$('back').onclick();render()};
+async function doCheckin(done){$('cerr').textContent='';const wasDone=SEL in ME.days;const {ok,j}=await api('/api/checkin',{date:SEL,done:done,note:$('note').value});if(!ok){$('cerr').textContent=j.error||'Something went wrong. Please try again.';return}ME=j;render();
+ if(j.newBadges.length){const m=ME.milestones.find(x=>x.n===j.newBadges[j.newBadges.length-1]);toast('🏅 New badge: '+m.label);confetti(j.newBadges.includes(62)?420:220)}else if(!done)toast('Check-in removed.');else if(wasDone)toast('Note saved ✔');else{toast(['You did it! 🎉','Nice work! ⭐','Way to go! 💪','Another day done! ☀️'][Math.random()*4|0]);confetti(70)}wins();lb()}
+$('save').onclick=()=>doCheckin(true);$('undo').onclick=()=>doCheckin(false);
+function confetti(n){if(RM)return;const c=$('confetti'),x=c.getContext('2d');c.width=innerWidth;c.height=innerHeight;const cols=['#e3b04b','#f2cf7e','#f7efdf','#bcd6f2','#ffffff'];
+ const P=[...Array(n)].map(()=>({x:Math.random()*c.width,y:-20-Math.random()*c.height*.5,vx:Math.random()*2-1,vy:2+Math.random()*4,r:5+Math.random()*9,c:cols[Math.random()*5|0],a:Math.random()*6,f:Math.random()<.4}));let f=0;
+ (function step(){x.clearRect(0,0,c.width,c.height);P.forEach(p=>{p.x+=p.vx+Math.sin(p.a+=.1);p.y+=p.vy;x.fillStyle=p.c;if(p.f){x.font=(p.r*2.2)+'px sans-serif';x.fillText('❄',p.x,p.y)}else x.fillRect(p.x,p.y,p.r,p.r*1.6)});if(++f<240)requestAnimationFrame(step);else x.clearRect(0,0,c.width,c.height)})()}
+function snow(){if(RM)return;const c=$('snow'),x=c.getContext('2d');let W,H;const rs=()=>{W=c.width=innerWidth;H=c.height=innerHeight};rs();addEventListener('resize',rs);
+ const F=[...Array(46)].map(()=>({x:Math.random()*W,y:Math.random()*H,r:1+Math.random()*2.6,v:.3+Math.random()*.8,a:Math.random()*6}));
+ (function step(){x.clearRect(0,0,W,H);x.fillStyle='rgba(247,239,223,.75)';F.forEach(p=>{p.y+=p.v;p.x+=Math.sin(p.a+=.01)*.4;if(p.y>H+5){p.y=-5;p.x=Math.random()*W}x.beginPath();x.arc(p.x,p.y,p.r,0,6.3);x.fill()});if(!document.hidden)requestAnimationFrame(step);else setTimeout(step,500)})()}
+async function lb(){const {j}=await api('/api/leaderboard');if(!j.top||!j.top.length){$('lbt').textContent='No check-ins yet. Be the first on the board! 🌟';return}
+ const row=r=>`<div class="lb ${r.me?'me':''} ${r.rank===1?'top1':''}"><span class="r">${r.rank<=3?['🥇','🥈','🥉'][r.rank-1]:r.rank}</span><span class="n">${esc(r.name)}${r.me?' (you)':''}</span><span class="s"><b>${r.done}</b> days<br>🔥 ${r.current} in a row</span></div>`;
  let h=j.top.map(row).join('');
  if(j.me&&j.me.rank>10)h+='<div class="small" style="text-align:center;margin:6px">· · ·</div>'+row(j.me);
- else if(!j.me&&ME)h+='<p class="small">Check in to join the board!</p>';
+ else if(!j.me&&ME)h+='<p class="small">Check in once to join the board!</p>';
  $('lbt').innerHTML=h+`<p class="small">${j.total} members on the board</p>`}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('act',x===b));['me','lb','wins'].forEach(t=>$('tab-'+t).classList.toggle('hide',t!==b.dataset.t));if(b.dataset.t==='lb')lb();if(b.dataset.t==='wins')wins();scrollTo(0,0)});
+snow();
 (async()=>{const {ok,j}=await api('/api/me');if(ok)ME=j;render();wins()})();
 </script></body></html>

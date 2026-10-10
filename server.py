@@ -93,6 +93,7 @@ class H(http.server.BaseHTTPRequestHandler):
         p = self.path.split("?")[0]; b = self.body()
         with LOCK:
             if p == "/api/login": return self.login(b)
+            if p == "/api/register": return self.register(b)
             if p == "/api/logout":
                 m = re.search(r"sol=([A-Za-z0-9_\-]+)", self.headers.get("Cookie",""))
                 if m: db.execute("DELETE FROM sessions WHERE token_hash=?", (th(m.group(1)),))
@@ -101,29 +102,42 @@ class H(http.server.BaseHTTPRequestHandler):
             if not u: return self.send(401, {"error":"auth"})
             if p == "/api/checkin": return self.checkin(u, b)
         self.send(404, {"error":"nf"})
-    def login(self, b):
+    def _parse(self, b):
         name = re.sub(r"\s+"," ", str(b.get("name","")).strip())[:24]
         pin = str(b.get("pin",""))
         if not name or not re.fullmatch(r"\d{4}", pin):
-            return self.send(400, {"error":"Enter a display name and a 4-digit PIN."})
-        key = name.casefold(); now = time.time()
-        r = db.execute("SELECT id,salt,pin_hash,fails,locked_until,name FROM users WHERE name_key=?", (key,)).fetchone()
-        if r:
-            if r[4] > now: return self.send(429, {"error":"Too many wrong PINs. Try again in a few minutes."})
-            if not hmac.compare_digest(hp(pin, r[1]), r[2]):
-                f = r[3]+1
-                if f >= 5: db.execute("UPDATE users SET fails=0,locked_until=? WHERE id=?", (now+300, r[0]))
-                else: db.execute("UPDATE users SET fails=? WHERE id=?", (f, r[0]))
-                return self.send(401, {"error":"That name exists and the PIN doesn't match. Pick a different name if you're new."})
-            db.execute("UPDATE users SET fails=0 WHERE id=?", (r[0],)); uid, new = r[0], False
-        else:
-            salt = secrets.token_hex(16)
-            cur = db.execute("INSERT INTO users(name,name_key,salt,pin_hash,created) VALUES(?,?,?,?,?)", (name,key,salt,hp(pin,salt),now))
-            uid, new = cur.lastrowid, True
-        tok = secrets.token_urlsafe(32)
+            self.send(400, {"error":"Please type your name and a 4-digit PIN (numbers only)."}); return None
+        return name, pin
+    def _session(self, uid, new):
+        now = time.time(); tok = secrets.token_urlsafe(32)
         db.execute("INSERT INTO sessions VALUES(?,?,?)", (th(tok), uid, now))
         nm = db.execute("SELECT name FROM users WHERE id=?", (uid,)).fetchone()[0]
         self.send(200, {"new":new, **me_payload((uid,nm))}, cookie=f"sol={tok}; Path=/; Max-Age=7776000; HttpOnly; SameSite=Lax; Secure")
+    def login(self, b):
+        # Log in only: never creates an account.
+        p = self._parse(b)
+        if not p: return
+        name, pin = p; key = name.casefold(); now = time.time()
+        bad = {"error":"That name or PIN doesn't match. Please try again."}
+        r = db.execute("SELECT id,salt,pin_hash,fails,locked_until FROM users WHERE name_key=?", (key,)).fetchone()
+        if not r: return self.send(401, bad)
+        if r[4] > now: return self.send(429, {"error":"Too many tries. Please wait 5 minutes, then try again. Forgot your PIN? Ask the studio."})
+        if not hmac.compare_digest(hp(pin, r[1]), r[2]):
+            f = r[3]+1
+            if f >= 5: db.execute("UPDATE users SET fails=0,locked_until=? WHERE id=?", (now+300, r[0]))
+            else: db.execute("UPDATE users SET fails=? WHERE id=?", (f, r[0]))
+            return self.send(401, bad)
+        db.execute("UPDATE users SET fails=0 WHERE id=?", (r[0],))
+        self._session(r[0], False)
+    def register(self, b):
+        p = self._parse(b)
+        if not p: return
+        name, pin = p; key = name.casefold()
+        if db.execute("SELECT 1 FROM users WHERE name_key=?", (key,)).fetchone():
+            return self.send(409, {"error":"That name is already taken. If that's you, tap \"Log in\". If not, please pick a slightly different name (like adding your last initial)."})
+        salt = secrets.token_hex(16)
+        cur = db.execute("INSERT INTO users(name,name_key,salt,pin_hash,created) VALUES(?,?,?,?,?)", (name,key,salt,hp(pin,salt),time.time()))
+        self._session(cur.lastrowid, True)
     def checkin(self, u, b):
         try: d = date.fromisoformat(str(b.get("date")))
         except Exception: return self.send(400, {"error":"bad date"})
