@@ -223,7 +223,7 @@ class H(http.server.BaseHTTPRequestHandler):
         name, pin = p
         r = FED.login(name, pin)
         if r[0] == "ok": return self._session(r[1], r[2])
-        if r[0] == "locked": return self.send(429, {"error":"Too many tries. Please wait 5 minutes, then try again. Forgot your PIN? Ask the studio."})
+        if r[0] == "locked": return self.send(429, {"error":"Too many tries. Please wait 5 minutes, then try again. Forgot your PIN? Email Memberservice@gymnazo.com or ask any coach."})
         msg = "That name or PIN doesn't match. Please try again."
         if r[1]: msg += " (If you signed up on our other Gymnazo app, we can't check it right now. Please try again in a few minutes.)"
         self.send(401, {"error":msg})

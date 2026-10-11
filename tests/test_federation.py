@@ -126,7 +126,7 @@ try:
     S("/api/login", {"name": "Fed Alice", "pin": "7777"}); q(SDB, "update users set fails=0,locked_until=0"); q(MDB, "update users set fails=0,locked_until=0")
     codes = [S("/api/login", {"name": "Fed Alice", "pin": "0001"})[0] for _ in range(5)]
     check("5 wrong tries on solstice -> 401s", codes == [401] * 5, codes)
-    s, j, _ = S("/api/login", {"name": "Fed Alice", "pin": "7777"}); check("solstice locked even with the right PIN", s == 429 and "Ask the studio" in j["error"])
+    s, j, _ = S("/api/login", {"name": "Fed Alice", "pin": "7777"}); check("solstice locked even with the right PIN", s == 429 and "any coach" in j["error"])
     s, j, _ = M("/api/login", {"name": "Fed Alice", "pin": "7777"}); check("peer verify counted the same failures: metrics locked too (no bypass)", s == 429, (s, j))
     s, j, _ = M("/api/federation/verify", {"name": "fed alice", "pin": "7777"}, secret=SECRET); check("locked name returns not-ok without checking", j == {"ok": False})
     # brute force through the other site for an account that only exists on one app
