@@ -122,6 +122,7 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 <div class="count" id="count">&nbsp;</div>
 </header>
 
+<div id="betabar" class="hide" style="background:#ffd36b;color:#0f1b3d;font-weight:700;text-align:center;border-radius:16px;padding:12px;margin-top:10px;font-size:19px">🧪 BETA – test data only. Entries here are practice and will be cleared before the real challenge. Check-ins are open now.</div>
 <nav><button data-t="me" class="act"><span class="e">🏠</span>My Page</button><button data-t="lb"><span class="e">❄️</span>Momentum</button><button data-t="wins"><span class="e">🎉</span>Wins</button></nav>
 
 <div id="tab-me">
@@ -144,7 +145,7 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
   <p class="small" id="fhint"></p>
   <button class="ghost" id="back" style="margin-top:6px">← Go back</button>
  </div>
- <p class="small" style="margin-bottom:0">Already signed up on the Gymnazo Metrics app? Use the same name and PIN here. Forgot your PIN? Email <a href="mailto:Memberservice@gymnazo.com" style="color:inherit;font-weight:700">Memberservice@gymnazo.com</a> or ask any coach.</p>
+ <p class="small" style="margin-bottom:0" id="fedhelp">Already signed up on the Gymnazo Metrics app? Use the same name and PIN here. Forgot your PIN? Email <a href="mailto:Memberservice@gymnazo.com" style="color:inherit;font-weight:700">Memberservice@gymnazo.com</a> or ask any coach.</p>
 </div>
 
 <div id="app" class="hide">
@@ -160,7 +161,7 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 <p class="small">Missed a day? Tap it in the calendar below.</p></div>
 
 <div class="card"><h2>My Progress</h2>
-<div class="ringbox"><div class="ring"><svg width="132" height="132" viewBox="0 0 132 132"><circle class="bg" cx="66" cy="66" r="56"/><circle class="fg" id="rfg" cx="66" cy="66" r="56" stroke-dasharray="351.86" stroke-dashoffset="351.86"/></svg><div class="mid"><span id="dn">0</span><small>of 62 days</small></div></div>
+<div class="ringbox"><div class="ring"><svg width="132" height="132" viewBox="0 0 132 132"><circle class="bg" cx="66" cy="66" r="56"/><circle class="fg" id="rfg" cx="66" cy="66" r="56" stroke-dasharray="351.86" stroke-dashoffset="351.86"/></svg><div class="mid"><span id="dn">0%</span><small>of 30 activities</small></div></div>
 <div style="flex:1"><div id="ptxt" style="font-weight:700;font-size:20px"></div><div class="bar"><i id="fill"></i></div><div class="small" id="enc" style="margin-top:8px"></div></div></div>
 <div class="stats"><div class="stat"><b><span class="flame" id="fl">🔥</span> <span id="cur">0</span></b><span class="small">days in a row</span></div><div class="stat"><b>⭐ <span id="lon">0</span></b><span class="small">best streak</span></div></div>
 </div>
@@ -176,7 +177,8 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 <script>
 let ME=null,SEL=null,MODE='new';const $=id=>document.getElementById(id);
 const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
-async function api(p,b){let r;try{r=await fetch(p,b?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}:{})}catch(e){return {ok:false,j:{error:'Can\'t reach the internet. Please try again.'}}}let j={};try{j=await r.json()}catch(e){}return {ok:r.ok,j}}
+const BETA=!!window.BETA,BASE=BETA?'/beta':'';
+async function api(p,b){p=BASE+p;let r;try{r=await fetch(p,b?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}:{})}catch(e){return {ok:false,j:{error:'Can\'t reach the internet. Please try again.'}}}let j={};try{j=await r.json()}catch(e){}return {ok:r.ok,j}}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function fmt(iso){const d=new Date(iso+'T12:00:00');return d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}
 const ICONS={1:'❄️',7:'⛄',14:'🔥',21:'⭐',30:'🌙',45:'🏔️',62:'☀️'};
@@ -202,10 +204,10 @@ function render(){
  if(open){const done=SEL in ME.days;$('dayTitle').textContent=SEL===t?'Today · '+fmt(SEL):fmt(SEL);$('note').value=ME.days[SEL]||'';
   $('doneMsg').classList.toggle('hide',!done);$('undo').classList.toggle('hide',!done);
   $('save').textContent=done?'Save my note':(SEL===t?'I did it today!':'I did it on this day!');$('save').classList.toggle('pulse',!done)}
- const C=351.86;$('rfg').style.strokeDashoffset=C*(1-ME.done/ME.total);
- $('fill').style.width=(ME.done/ME.total*100)+'%';$('ptxt').textContent=ME.done+' of '+ME.total+' days done';
- $('enc').textContent=ME.done===0?'Your first day is the hardest. You can do it!':ME.done<7?'Great start! Keep it going.':ME.done<21?'You\'re building a habit. Wonderful!':ME.done<45?'You\'re on fire! Keep shining.':'Almost there. So proud of you!';
- $('cur').textContent=ME.current;$('lon').textContent=ME.longest;$('dn').textContent=ME.done;
+ const C=351.86,AD=Math.min(30,ME.activitiesDone||0),PCT=Math.round(AD/30*100);$('rfg').style.strokeDashoffset=C*(1-PCT/100);
+ $('fill').style.width=PCT+'%';$('ptxt').textContent=AD+' of 30 activities done';
+ $('enc').textContent=AD===0?'Finish your first activity to start your progress. You can do it!':PCT<25?'Great start! Keep it going.':PCT<50?'You\'re building momentum. Wonderful!':PCT<90?'You\'re on fire! Keep shining.':'Almost there. So proud of you!';
+ $('cur').textContent=ME.current;$('lon').textContent=ME.longest;$('dn').textContent=PCT+'%';
  $('fl').style.setProperty('--s',Math.min(2.2,1+ME.current*.06));
  let g='';const s=new Date(ME.start+'T12:00:00');
  for(let i=0;i<ME.total;i++){const d=new Date(s);d.setDate(s.getDate()+i);const iso=d.toISOString().slice(0,10);
@@ -332,6 +334,9 @@ async function lb(){const {j}=await api('/api/leaderboard');if(!j.top||!j.top.le
  else if(!j.me&&ME)h+='<p class="small">Check in once to join the Momentum board!</p>';
  $('lbt').innerHTML=h+`<p class="small">${j.total} members building momentum together</p>`}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('act',x===b));['me','lb','wins'].forEach(t=>$('tab-'+t).classList.toggle('hide',t!==b.dataset.t));if(b.dataset.t==='lb')lb();if(b.dataset.t==='wins')wins();scrollTo(0,0)});
+if(BETA){$('betabar').classList.remove('hide');$('fedhelp').textContent='Beta test: make a new practice account here (any name and 4-digit PIN). It is separate from your real Gymnazo account.';document.title='BETA · '+document.title;
+ const tick=()=>{if(document.hidden)return;if(!$('tab-lb').classList.contains('hide'))lb();if(!$('tab-wins').classList.contains('hide'))wins()};
+ setInterval(tick,6000);document.addEventListener('visibilitychange',tick)}
 snow();
 (async()=>{const {ok,j}=await api('/api/me');if(ok)ME=j;render();wins()})();
 </script></body></html>

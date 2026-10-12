@@ -7,9 +7,17 @@ TOTAL = 62
 MILESTONES = [1,7,14,21,30,45,62]
 DB = os.environ.get("DB_PATH") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "solstice.db")
 PORT = int(os.environ.get("PORT", 8077))
-db = sqlite3.connect(DB, check_same_thread=False, isolation_level=None)
-db.execute("PRAGMA journal_mode=WAL")
-db.executescript("""
+BETA_DB = os.environ.get("BETA_DB_PATH") or os.path.join(os.path.dirname(os.path.abspath(DB)), "solstice-beta.db")
+BETA_START = date.fromisoformat(os.environ.get("BETA_START", "2026-10-12"))
+import threading
+_TL = threading.local()
+class _DBProxy:
+    """Routes queries to the main DB, or to the separate beta DB for /beta requests (per thread)."""
+    def __getattr__(self, k): return getattr(getattr(_TL, "conn", None) or MAIN, k)
+def is_beta(): return getattr(_TL, "conn", None) is BETA
+def init_schema(db):
+  db.execute("PRAGMA journal_mode=WAL")
+  db.executescript("""
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, name_key TEXT UNIQUE, salt TEXT, pin_hash TEXT, created REAL, fails INTEGER DEFAULT 0, locked_until REAL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY, user_id INTEGER, created REAL);
 CREATE TABLE IF NOT EXISTS checkins(user_id INTEGER, day TEXT, note TEXT, created REAL, PRIMARY KEY(user_id, day));
@@ -24,6 +32,9 @@ CREATE INDEX IF NOT EXISTS comments_a ON comments(activity_id, hidden, id);
 CREATE TABLE IF NOT EXISTS reactions(comment_id INTEGER, user_id INTEGER, kind TEXT, created REAL, PRIMARY KEY(comment_id, user_id, kind));
 CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT);
 """)
+MAIN = sqlite3.connect(DB, check_same_thread=False, isolation_level=None)
+db = MAIN
+init_schema(MAIN)
 if not db.execute("SELECT 1 FROM meta WHERE k='seeded'").fetchone():
     if db.execute("SELECT COUNT(*) FROM activities").fetchone()[0] == 0:
         for i,(n,t,u) in enumerate([("Jumps",1000,"jumps"),("Minutes of Movement",100,"minutes"),("Squats",50,"squats")]):
@@ -38,6 +49,27 @@ db.execute("CREATE TABLE IF NOT EXISTS results(user_id INTEGER, activity_id INTE
 if "repeat_count" not in _cols: db.execute("ALTER TABLE activities ADD COLUMN repeat_count INTEGER DEFAULT 3")
 db.execute("CREATE TABLE IF NOT EXISTS repeats(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, activity_id INTEGER, day TEXT, note TEXT, created REAL)")
 db.execute("CREATE INDEX IF NOT EXISTS repeats_ua ON repeats(user_id, activity_id)")
+if "pin_changed" not in [r[1] for r in db.execute("PRAGMA table_info(users)")]: db.execute("ALTER TABLE users ADD COLUMN pin_changed REAL")
+BETA = sqlite3.connect(BETA_DB, check_same_thread=False, isolation_level=None)
+init_schema(BETA)
+def migrate(c):
+    cols = [r[1] for r in c.execute("PRAGMA table_info(activities)")]
+    for col, ddl in (("phase","INTEGER DEFAULT 0"),("kind","TEXT DEFAULT 'chunked'"),("record_type","TEXT DEFAULT 'none'"),("repeat_count","INTEGER DEFAULT 3")):
+        if col not in cols: c.execute("ALTER TABLE activities ADD COLUMN %s %s" % (col, ddl))
+    c.execute("CREATE TABLE IF NOT EXISTS results(user_id INTEGER, activity_id INTEGER, seconds INTEGER, weight REAL, wunit TEXT, created REAL, PRIMARY KEY(user_id, activity_id))")
+    c.execute("CREATE TABLE IF NOT EXISTS repeats(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, activity_id INTEGER, day TEXT, note TEXT, created REAL)")
+    if "pin_changed" not in [r[1] for r in c.execute("PRAGMA table_info(users)")]: c.execute("ALTER TABLE users ADD COLUMN pin_changed REAL")
+migrate(BETA)
+BETA_TABLES = ("users","sessions","checkins","wins","progress","user_activities","user_picks","comments","reactions","results","repeats")
+def beta_sync_activities():
+    """Beta uses the same activity list as the real challenge (copied from the main DB, same ids)."""
+    rows = MAIN.execute("SELECT id,name,target,unit,sort,active,phase,kind,record_type,repeat_count FROM activities").fetchall()
+    BETA.execute("DELETE FROM activities")
+    BETA.executemany("INSERT INTO activities(id,name,target,unit,sort,active,phase,kind,record_type,repeat_count) VALUES(?,?,?,?,?,?,?,?,?,?)", rows)
+def beta_wipe():
+    for t in BETA_TABLES: BETA.execute("DELETE FROM %s" % t)
+    beta_sync_activities()
+beta_sync_activities()
 KINDS = ("chunked","once","repeat"); RECS = ("time","weight","both","none")
 PHASES = {"1":1,"capacity":1,"2":2,"acquire":2,"3":3,"practice":3}
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
@@ -47,9 +79,12 @@ LOCK = __import__("threading").Lock()
 def today():
     o=os.environ.get('SOL_TEST_TODAY')
     return date.fromisoformat(o) if o else datetime.now(TZ).date()
+def start_end(): return (BETA_START, BETA_START + timedelta(days=TOTAL-1)) if is_beta() else (START, END)
+CK = lambda: "solb" if is_beta() else "sol"
 def hp(pin, salt): return hashlib.pbkdf2_hmac("sha256", pin.encode(), bytes.fromhex(salt), 200000).hex()
 def th(t): return hashlib.sha256(t.encode()).hexdigest()
-FED = federation.Fed(db, LOCK, hp)
+FED = federation.Fed(MAIN, LOCK, hp)
+db = _DBProxy()
 def label(n): return {1:"First check-in",7:"One week strong",14:"Two weeks!",21:"Three weeks!",30:"30 days!",45:"45 days!",62:"Solstice complete!"}[n]
 
 def stats(uid):
@@ -68,7 +103,7 @@ def stats(uid):
 
 def user_from(h):
     c = h.headers.get("Cookie","")
-    m = re.search(r"sol=([A-Za-z0-9_\-]+)", c)
+    m = re.search(r"(?:^|;)\s*%s=([A-Za-z0-9_\-]+)" % CK(), c)
     if not m: return None
     r = db.execute("SELECT u.id,u.name FROM sessions s JOIN users u ON u.id=s.user_id WHERE token_hash=?", (th(m.group(1)),)).fetchone()
     return r
@@ -99,7 +134,7 @@ def me_payload(u):
     s = stats(u[0])
     acts = activities_for(u[0])
     wins = [r[0] for r in db.execute("SELECT milestone FROM wins WHERE user_id=? ORDER BY milestone",(u[0],))]
-    return {"name":u[1], "today":today().isoformat(), "start":START.isoformat(), "end":END.isoformat(),
+    return {"name":u[1], "today":today().isoformat(), "start":start_end()[0].isoformat(), "end":start_end()[1].isoformat(), "beta":is_beta(),
             "total":TOTAL, "milestones":[{"n":n,"label":label(n)} for n in MILESTONES], "badges":wins, "activities":acts, "activitiesDone":sum(1 for a in acts if a["done"]),"picksSaved":bool(db.execute("SELECT 1 FROM user_picks WHERE user_id=?", (u[0],)).fetchone()), **s}
 
 def fdate(t): return datetime.fromtimestamp(t, TZ).date().isoformat() if t else ""
@@ -151,10 +186,21 @@ class H(http.server.BaseHTTPRequestHandler):
         if n > 10000: return {}
         try: return json.loads(self.rfile.read(n) or b"{}")
         except Exception: return {}
-    def do_GET(self):
+    def _route(self, fn):
         p = self.path.split("?")[0]
+        if p == "/beta" or p.startswith("/beta/"):
+            _TL.conn = BETA; p = p[5:] or "/"
+            if p.startswith("/api/federation/"): return self.send(404, {"error":"nf"})
+        else: _TL.conn = None
+        try: return fn(p)
+        finally: _TL.conn = None
+    def do_GET(self): return self._route(self._get)
+    def do_POST(self): return self._route(self._post)
+    def _get(self, p):
         if p in ("/","/index.html"):
-            return self.send(200, open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"index.html"),"rb").read(), "text/html; charset=utf-8")
+            h = open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"index.html"),"rb").read()
+            if is_beta(): h = h.replace(b"<head>", b"<head><script>window.BETA=1</script>", 1)
+            return self.send(200, h, "text/html; charset=utf-8")
         if p == "/admin":
             return self.send(200, open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"admin.html"),"rb").read(), "text/html; charset=utf-8")
         if p == "/api/me":
@@ -176,17 +222,17 @@ class H(http.server.BaseHTTPRequestHandler):
             strip = lambda r:{"rank":r["rank"],"name":r["name"],"done":r["done"],"current":r["current"],"acts":r["acts"],"me":bool(u and r["id"]==u[0])}
             return self.send(200, {"total":len(rows),"top":[strip(r) for r in rows[:10]],"me":strip(mine) if mine else None})
         self.send(404, {"error":"nf"})
-    def do_POST(self):
-        p = self.path.split("?")[0]; b = self.body()
+    def _post(self, p):
+        b = self.body()
         # shared-login federation + login/register take the lock themselves (they may call the peer app, never while holding it)
         if p.startswith("/api/federation/"): return FED.handle(self, p, b)
         if p == "/api/login": return self.login(b)
         if p == "/api/register": return self.register(b)
         with LOCK:
             if p == "/api/logout":
-                m = re.search(r"sol=([A-Za-z0-9_\-]+)", self.headers.get("Cookie",""))
+                m = re.search(r"(?:^|;)\s*%s=([A-Za-z0-9_\-]+)" % CK(), self.headers.get("Cookie",""))
                 if m: db.execute("DELETE FROM sessions WHERE token_hash=?", (th(m.group(1)),))
-                return self.send(200, {"ok":1}, cookie="sol=; Path=/; Max-Age=0")
+                return self.send(200, {"ok":1}, cookie="%s=; Path=/; Max-Age=0" % CK())
             if p.startswith("/api/admin/"): return self.admin(p, b)
             u = user_from(self)
             if not u: return self.send(401, {"error":"auth"})
@@ -215,13 +261,13 @@ class H(http.server.BaseHTTPRequestHandler):
             db.execute("INSERT INTO sessions VALUES(?,?,?)", (th(tok), uid, now))
             nm = db.execute("SELECT name FROM users WHERE id=?", (uid,)).fetchone()[0]
             pl = me_payload((uid,nm))
-        self.send(200, {"new":new, **pl}, cookie=f"sol={tok}; Path=/; Max-Age=7776000; HttpOnly; SameSite=Lax; Secure")
+        self.send(200, {"new":new, **pl}, cookie=f"{CK()}={tok}; Path=/; Max-Age=7776000; HttpOnly; SameSite=Lax; Secure")
     def login(self, b):
         # Log in only: never creates an account on a failed login. The local check comes first; then the peer app is asked.
         p = self._parse(b)
         if not p: return
         name, pin = p
-        r = FED.login(name, pin)
+        r = self.beta_login(name, pin) if is_beta() else FED.login(name, pin)
         if r[0] == "ok": return self._session(r[1], r[2])
         if r[0] == "locked": return self.send(429, {"error":"Too many tries. Please wait 5 minutes, then try again. Forgot your PIN? Email Memberservice@gymnazo.com or ask any coach."})
         msg = "That name or PIN doesn't match. Please try again."
@@ -234,7 +280,7 @@ class H(http.server.BaseHTTPRequestHandler):
         taken = {"error":"That name is already taken. If that's you, tap \"Log in\" and use the same PIN you picked before (it works on both Gymnazo apps). If not, please pick a slightly different name (like adding your last initial)."}
         with LOCK:
             if db.execute("SELECT 1 FROM users WHERE name_key=?", (key,)).fetchone(): return self.send(409, taken)
-        c = FED.register_check(name)
+        c = ("ok",) if is_beta() else FED.register_check(name)
         if c[0] == "taken": return self.send(409, taken)
         if c[0] == "peer_down": return self.send(503, {"error":"We can't finish creating your account right now. Please try again in a few minutes."})
         salt = secrets.token_hex(16); now = time.time()
@@ -243,6 +289,18 @@ class H(http.server.BaseHTTPRequestHandler):
             cur = db.execute("INSERT INTO users(name,name_key,salt,pin_hash,created,pin_changed) VALUES(?,?,?,?,?,?)", (name,key,salt,hp(pin,salt),now,now))
             uid = cur.lastrowid
         self._session(uid, True)
+    def beta_login(self, name, pin):
+        # standalone beta login: local beta DB only, never asks the Metrics app
+        with LOCK:
+            r = db.execute("SELECT id,salt,pin_hash,fails,locked_until FROM users WHERE name_key=?", (name.casefold(),)).fetchone()
+            if not r: return ("bad", False)
+            if r[4] > time.time(): return ("locked",)
+            if hmac.compare_digest(hp(pin, r[1]), r[2]):
+                db.execute("UPDATE users SET fails=0 WHERE id=?", (r[0],)); return ("ok", r[0], False)
+            f = r[3] + 1
+            if f >= 8: db.execute("UPDATE users SET fails=0,locked_until=? WHERE id=?", (time.time()+300, r[0]))
+            else: db.execute("UPDATE users SET fails=? WHERE id=?", (f, r[0]))
+            return ("bad", False)
     def _clist(self, u, aid, offset):
         tot = db.execute("SELECT COUNT(*) FROM comments WHERE activity_id=? AND hidden=0", (aid,)).fetchone()[0]
         rows = db.execute("SELECT c.id,u.name,c.body,c.created,c.user_id FROM comments c JOIN users u ON u.id=c.user_id WHERE c.activity_id=? AND c.hidden=0 ORDER BY c.id DESC LIMIT 5 OFFSET ?", (aid,offset)).fetchall()
@@ -478,6 +536,11 @@ class H(http.server.BaseHTTPRequestHandler):
                     try: db.execute("UPDATE activities SET sort=? WHERE id=?", (i,int(x)))
                     except Exception: pass
             return self.send(200, lst())
+        if p == "/api/admin/beta/wipe":
+            if str(b.get("confirm","")).strip().upper() != "WIPE BETA": return self.send(400, {"error":"Type WIPE BETA to confirm."})
+            beta_wipe(); return self.send(200, {"ok":1, "wiped":"beta"})
+        if p == "/api/admin/beta/stats":
+            return self.send(200, {"users":BETA.execute("SELECT COUNT(*) FROM users").fetchone()[0], "checkins":BETA.execute("SELECT COUNT(*) FROM checkins").fetchone()[0], "progress":BETA.execute("SELECT COUNT(*) FROM progress").fetchone()[0]})
         if p == "/api/admin/members": return self.send(200, member_rows())
         if p == "/api/admin/members/detail":
             try: d = member_detail(int(b.get("id")))
@@ -527,7 +590,8 @@ class H(http.server.BaseHTTPRequestHandler):
     def checkin(self, u, b):
         try: d = date.fromisoformat(str(b.get("date")))
         except Exception: return self.send(400, {"error":"bad date"})
-        if d < START or d > END or d > today(): return self.send(400, {"error":"That day isn't open for check-in."})
+        s0, e0 = start_end()
+        if d < s0 or d > e0 or d > today(): return self.send(400, {"error":"That day isn't open for check-in."})
         new = []
         if b.get("done", True):
             note = str(b.get("note",""))[:200]
