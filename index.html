@@ -345,9 +345,22 @@ $('out').onclick=async()=>{await api('/api/logout',{});ME=null;PKSHOWN=false;ROP
 async function doCheckin(done){$('cerr').textContent='';const wasDone=SEL in ME.days;const {ok,j}=await api('/api/checkin',{date:SEL,done:done,note:$('note').value});if(!ok){$('cerr').textContent=j.error||'Something went wrong. Please try again.';return}ME=j;render();
  if(j.newBadges.length){badgePop(j.newBadges)}else if(!done)toast('Check-in removed.');else if(wasDone)toast('Note saved ✔');else{toast(['You did it! 🎉','Nice work! ⭐','Way to go! 💪','Another day done! ☀️'][Math.random()*4|0]);confetti(70)}wins();lb()}
 $('save').onclick=()=>doCheckin(true);$('undo').onclick=()=>doCheckin(false);
-function confetti(n){if(RM)return;const c=$('confetti'),x=c.getContext('2d');c.width=innerWidth;c.height=innerHeight;const cols=['#e3b04b','#f2cf7e','#f7efdf','#bcd6f2','#ffffff'];
- const P=[...Array(n)].map(()=>({x:Math.random()*c.width,y:-20-Math.random()*c.height*.5,vx:Math.random()*2-1,vy:2+Math.random()*4,r:5+Math.random()*9,c:cols[Math.random()*5|0],a:Math.random()*6,f:Math.random()<.4}));let f=0;
- (function step(){x.clearRect(0,0,c.width,c.height);P.forEach(p=>{p.x+=p.vx+Math.sin(p.a+=.1);p.y+=p.vy;x.fillStyle=p.c;if(p.f){x.font=(p.r*2.2)+'px sans-serif';x.fillText('❄',p.x,p.y)}else x.fillRect(p.x,p.y,p.r,p.r*1.6)});if(++f<240)requestAnimationFrame(step);else x.clearRect(0,0,c.width,c.height)})()}
+// One shared confetti engine: every burst adds pieces to the same list and a single animation loop draws them all,
+// so overlapping bursts (badge popup + activity confetti, several badges) never fight over the canvas.
+const CF={p:[],run:false,last:0,t0:0};
+function confetti(n){if(RM)return;const c=$('confetti');if(c.width!==innerWidth||c.height!==innerHeight){c.width=innerWidth;c.height=innerHeight}
+ const cols=['#e3b04b','#f2cf7e','#f7efdf','#bcd6f2','#ffffff'];n=Math.min(n,500-CF.p.length);
+ for(let i=0;i<n;i++)CF.p.push({x:Math.random()*c.width,y:-20-Math.random()*c.height*.5,vx:Math.random()*2-1,vy:2+Math.random()*4,r:5+Math.random()*9,c:cols[Math.random()*5|0],a:Math.random()*6,f:Math.random()<.4});
+ CF.t0=performance.now();if(!CF.run){CF.run=true;CF.last=performance.now();requestAnimationFrame(cfStep)}}
+function cfStep(now){const c=$('confetti'),x=c.getContext('2d');const k=Math.min(4,Math.max(.25,(now-CF.last)/16.7));CF.last=now;
+ x.clearRect(0,0,c.width,c.height);
+ CF.p=CF.p.filter(p=>p.y<c.height+40&&p.x>-60&&p.x<c.width+60);
+ if(!CF.p.length||now-CF.t0>9000){CF.p=[];CF.run=false;x.clearRect(0,0,c.width,c.height);return}
+ CF.p.forEach(p=>{p.a+=.1*k;p.x+=(p.vx+Math.sin(p.a))*k;p.y+=p.vy*k;x.fillStyle=p.c;if(p.f){x.font=(p.r*2.2)+'px sans-serif';x.fillText('❄',p.x,p.y)}else x.fillRect(p.x,p.y,p.r,p.r*1.6)});
+ requestAnimationFrame(cfStep)}
+// if the page was hidden mid-burst, drop the leftovers instead of showing frozen pieces when it comes back
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&CF.run){CF.p=[]}});
+window.__cf=CF;
 function snow(){if(RM)return;const c=$('snow'),x=c.getContext('2d');let W,H;const rs=()=>{W=c.width=innerWidth;H=c.height=innerHeight};rs();addEventListener('resize',rs);
  const F=[...Array(46)].map(()=>({x:Math.random()*W,y:Math.random()*H,r:1+Math.random()*2.6,v:.3+Math.random()*.8,a:Math.random()*6}));
  (function step(){x.clearRect(0,0,W,H);x.fillStyle='rgba(247,239,223,.75)';F.forEach(p=>{p.y+=p.v;p.x+=Math.sin(p.a+=.01)*.4;if(p.y>H+5){p.y=-5;p.x=Math.random()*W}x.beginPath();x.arc(p.x,p.y,p.r,0,6.3);x.fill()});if(!document.hidden)requestAnimationFrame(step);else setTimeout(step,500)})()}
