@@ -124,6 +124,9 @@ BADGES = [
      "names":[["kettlebell squat"],["wall sit"],["single leg balance"],["jumps or calf raises","calf raise"],["box jump","box step"],["deep squat"],["lunge matrix"]]},
     {"key":"arms","label":"Arms Race","icon":"🥊","desc":"Finished every arm activity","kind":"names",
      "names":[["overhead slam"],["overhead press"],["min hang"],["medball throw"],["mace","plate halo"]]},
+    {"key":"count10","label":"Snowball Rolling","icon":"⛄","desc":"Finished 10 activities","kind":"count","n":10},
+    {"key":"count20","label":"Shining Star","icon":"🌟","desc":"Finished 20 activities","kind":"count","n":20},
+    {"key":"count30","label":"Solstice Champion","icon":"🏆","desc":"Finished all 30 activities","kind":"count","n":30},
     {"key":"timed","label":"Time Tracker","icon":"⏱️","desc":"Finished your first timed activity","kind":"timed"},
 ]
 def is_timed(a):
@@ -138,6 +141,7 @@ def badge_ok(b, uid, acts):
     if b["kind"] == "phase":
         L = [a for a in acts if a["phase"] == b["phase"]]
         return bool(L) and all(a["done"] for a in L)
+    if b["kind"] == "count": return sum(1 for a in acts if a["done"]) >= b["n"]
     if b["kind"] == "timed": return any(a["done"] and is_timed(a) for a in acts)
     if b["kind"] == "names":
         for alts in b["names"]:
