@@ -176,6 +176,17 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 <div class="card" id="actcard"><h2>My Goals 🎯</h2><div class="small">Tap a button to add what you did. Made a mistake? Tap Undo.</div><div id="chal"></div><input id="aq" type="text" placeholder="🔍 Search my activities" aria-label="Search activities" style="margin-top:12px"><div id="acts"></div><button class="gold big addmore" id="addMore" style="min-height:76px;font-size:24px">＋ Add more activities</button><div id="others"></div></div>
 <div id="picker" class="hide"><div class="in"><h2 id="pkTitle">Pick your activities</h2><div class="small" id="pkHelp"></div><div class="pkall"><button class="gold" id="pkAll">✔ Select all</button><button class="ghost" id="pkNone">Clear all</button></div><input id="pkq" type="text" placeholder="🔍 Search activities" aria-label="Search activities"><div id="pkl"></div></div><div id="pkbar"><div class="in2"><button class="ghost hide" id="pkCancel" style="background:var(--navy2)">Cancel</button><button class="gold" id="pkSave">Save</button></div></div></div>
 <div class="card"><h2>My Calendar</h2><div class="small">Gold = done. Tap a day to fill it in.</div><div class="grid" id="grid"></div></div>
+<div class="card cream" id="prizes"><h2>🎁 Prizes</h2>
+<h3 style="font-family:var(--serif);font-size:23px;margin:0 0 6px;color:var(--navy)">Finishers</h3>
+<ul style="margin:0 0 12px;padding-left:22px;line-height:1.5">
+<li><b>Complete 10 challenges:</b> earn a raffle entry</li>
+<li><b>Complete 20 challenges:</b> earn a second raffle entry</li>
+<li><b>Complete all 30 challenges:</b> a 1-month upgrade to the next tier of your membership and a free shirt. For example, if you are 2x/week you would be upgraded to 3x/week for 1 month. Unlimited members choose one: 2 semi-private sessions, or a free month of training for a friend or family member.</li>
+</ul>
+<h3 style="font-family:var(--serif);font-size:23px;margin:0 0 6px;color:var(--navy)">Raffle giveaways for bonus prizes!</h3>
+<p style="margin:0 0 6px">All entries go into a raffle with 4 winners, each winning one of:</p>
+<ul style="margin:0;padding-left:22px;line-height:1.5"><li>a 4-pack of semi-private sessions</li><li>an upgrade to unlimited group training for 1 month</li><li>a gift card to LSKD</li><li>cold plunge and sauna sessions at RFI</li></ul>
+</div>
 <div class="card"><h2>My Badges</h2><div class="badges" id="badges"></div></div>
 </div>
 </div>
@@ -232,7 +243,7 @@ function dv(a,n){return a.dec?Number((n/Math.pow(10,a.dec)).toFixed(a.dec)).toLo
 const PH={1:['I','Capacity','Discover where you are today. One-time, no pass or fail.'],2:['II','Acquire','Build resilience by accumulating work and time.'],3:['III','Practice','Do each one three times.'],0:['•','Other','More activities from the studio.']};
 function phSec(list,ALL,body,cntFn){return [1,2,3,0].map(p=>{const L=list.filter(a=>(a.phase||0)===p);if(!L.length)return '';const inP=ALL.filter(a=>(a.phase||0)===p);const t=PH[p];
  return `<section class="ph p${p}"><div class="phh"><h3>${t[1]}</h3><div class="cnt">${cntFn(inP)}</div></div><p class="phd">${t[2]}</p>${L.map(body).join('')}</section>`}).join('')}
-function chalBox(ALL){const d=ALL.filter(a=>a.done).length;const R=[[10,'Raffle entry'],[20,'Sauna 4-pack + 2nd raffle entry'],[30,'1-month tier upgrade']];
+function chalBox(ALL){const d=ALL.filter(a=>a.done).length;const R=[[10,'Raffle entry'],[20,'Second raffle entry'],[30,'1-month upgrade + free shirt']];
  return ALL.length?`<div style="font-weight:700;font-size:21px;margin-top:12px">${d} of 30 challenges complete</div><div class="rw">${R.map(r=>`<div class="${d>=r[0]?'got':''}"><b>${r[0]}</b>${d>=r[0]?'🎉 ':''}${r[1]}</div>`).join('')}</div>`:''}
 const RN={};
 function repeatCard(a){const n=a.total,N=a.target,L=a.repeats||[];
@@ -326,7 +337,7 @@ async function logAct(id,n){const e=$('aerr'+id);if(!(n>0)){e.textContent='Pleas
 async function undoAct(id){const e=$('aerr'+id);const {ok,j}=await api('/api/progress/undo',{activity_id:id});if(!ok){e.textContent=j.error||'Nothing to undo.';return}ME=j;renderActs();toast('Last entry removed.');lb()}
 async function wins(){const {j}=await api('/api/wins');$('wins').innerHTML=(j.wins&&j.wins.length)?`<div style="margin-bottom:6px">${j.members} members taking part</div>`+j.wins.map(w=>`<div class="win">${esc(w.icon||'🏅')} <b>${esc(w.name)}</b> earned ${esc(w.label)} <span class="small">· ${new Date(w.at*1000).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span></div>`).join(''):'No wins yet. Be the first! 🌟'}
 const BQ=[];function badgePop(list){if(!list||!list.length)return;list.forEach(b=>BQ.push(b));if($('bpop').classList.contains('hide'))nextBadge();render();wins()}
-function nextBadge(){const b=BQ.shift();if(!b){$('bpop').classList.add('hide');return}$('bpi').textContent=b.icon;$('bpt').textContent=b.label;$('bpd').textContent=b.desc+'. You earned it! 💙';$('bpop').classList.remove('hide');$('bpok').focus();confetti(380)}
+function nextBadge(){const b=BQ.shift();if(!b){$('bpop').classList.add('hide');return}$('bpi').textContent=b.icon;$('bpt').textContent=b.label;$('bpd').innerHTML=esc(b.desc)+'. You earned it! 💙'+(b.prize?'<div style="margin-top:12px;font-size:24px;font-weight:700;color:var(--gold2)">🎁 '+esc(b.prize)+'</div>':'');$('bpop').classList.remove('hide');$('bpok').focus();confetti(380)}
 $('bpok').onclick=nextBadge;
 let tt;function toast(m){const t=$('toast');t.textContent=m;t.className='show';clearTimeout(tt);tt=setTimeout(()=>t.className='',4000)}
 $('go').onclick=async()=>{$('lerr').textContent='';const {ok,j}=await api(MODE==='new'?'/api/register':'/api/login',{name:$('name').value,pin:$('pin').value});if(!ok){$('lerr').textContent=j.error||'Something went wrong. Please try again.';return}ME=j;SEL=null;render();if(j.new){toast('Welcome, '+j.name+'! ❄️');confetti(80)}else toast('Welcome back, '+j.name+'! ☀️');};

@@ -124,9 +124,9 @@ BADGES = [
      "names":[["kettlebell squat"],["wall sit"],["single leg balance"],["jumps or calf raises","calf raise"],["box jump","box step"],["deep squat"],["lunge matrix"]]},
     {"key":"arms","label":"Arms Race","icon":"🥊","desc":"Finished every arm activity","kind":"names",
      "names":[["overhead slam"],["overhead press"],["min hang"],["medball throw"],["mace","plate halo"]]},
-    {"key":"count10","label":"Snowball Rolling","icon":"⛄","desc":"Finished 10 activities","kind":"count","n":10},
-    {"key":"count20","label":"Shining Star","icon":"🌟","desc":"Finished 20 activities","kind":"count","n":20},
-    {"key":"count30","label":"Solstice Champion","icon":"🏆","desc":"Finished all 30 activities","kind":"count","n":30},
+    {"key":"count10","label":"Snowball Rolling","icon":"⛄","desc":"Finished 10 activities","prize":"You earned a raffle entry!","kind":"count","n":10},
+    {"key":"count20","label":"Shining Star","icon":"🌟","desc":"Finished 20 activities","prize":"You earned a second raffle entry!","kind":"count","n":20},
+    {"key":"count30","label":"Solstice Champion","icon":"🏆","desc":"Finished all 30 activities","prize":"You earned a 1-month membership upgrade and a free shirt!","kind":"count","n":30},
     {"key":"timed","label":"Time Tracker","icon":"⏱️","desc":"Finished your first timed activity","kind":"timed"},
 ]
 def is_timed(a):
@@ -135,7 +135,7 @@ def is_timed(a):
     if str(a.get("unit","")).casefold().startswith("min") or re.search(r"\d+\s*min", n) or re.search(r"\(\d+m\+\)", n): return True
     return a.get("kind") == "once" and bool((a.get("result") or {}).get("seconds"))
 BADGE = {b["key"]:b for b in BADGES}
-def badge_pub(b): return {"key":b["key"],"label":b["label"],"icon":b["icon"],"desc":b["desc"]}
+def badge_pub(b): return {"key":b["key"],"label":b["label"],"icon":b["icon"],"desc":b["desc"],"prize":b.get("prize","")}
 def badge_ok(b, uid, acts):
     if b["kind"] == "first": return db.execute("SELECT 1 FROM checkins WHERE user_id=? LIMIT 1", (uid,)).fetchone() is not None
     if b["kind"] == "phase":
@@ -218,7 +218,7 @@ def member_rows():
         st = stats(uid)
         last = db.execute("SELECT MAX(m) FROM (SELECT MAX(created) m FROM checkins WHERE user_id=?1 UNION ALL SELECT MAX(created) FROM progress WHERE user_id=?1 UNION ALL SELECT MAX(created) FROM results WHERE user_id=?1 UNION ALL SELECT MAX(created) FROM repeats WHERE user_id=?1 UNION ALL SELECT MAX(created) FROM comments WHERE user_id=?1)", (uid,)).fetchone()[0] or created or 0
         out.append({"id":uid,"name":name,"joined":fdate(created),"joined_ts":created or 0,"days":st["done"],"streak":st["current"],
-            "completed":sum(1 for a in activities_for(uid) if a["done"]),"last_active":fdate(last),"last_ts":last,
+            "completed":(cd:=sum(1 for a in activities_for(uid) if a["done"])),"raffle":(2 if cd>=20 else 1 if cd>=10 else 0),"finished30":cd>=30,"last_active":fdate(last),"last_ts":last,
             "notes":db.execute("SELECT COUNT(*) FROM comments WHERE user_id=?", (uid,)).fetchone()[0]})
     out.sort(key=lambda r:-r["last_ts"])
     return {"total":len(out),"active7":sum(1 for r in out if r["last_ts"] >= time.time()-7*86400),"activities":acts,"members":out}
@@ -623,8 +623,8 @@ class H(http.server.BaseHTTPRequestHandler):
             return self.send(200, d) if d else self.send(404, {"error":"No such member."})
         if p == "/api/admin/members/csv":
             m = member_rows()
-            rows = [["name","joined","days_checked_in","current_streak","challenges_completed","challenges_total","last_active","notes_posted"]]
-            rows += [[r["name"],r["joined"],r["days"],r["streak"],r["completed"],m["activities"],r["last_active"],r["notes"]] for r in m["members"]]
+            rows = [["name","joined","days_checked_in","current_streak","challenges_completed","challenges_total","raffle_entries","finished_all_30","last_active","notes_posted"]]
+            rows += [[r["name"],r["joined"],r["days"],r["streak"],r["completed"],m["activities"],r["raffle"],"yes" if r["finished30"] else "no",r["last_active"],r["notes"]] for r in m["members"]]
             return self.send(200, csv_text(rows), "text/csv; charset=utf-8")
         if p == "/api/admin/members/inputs-csv":
             rows = [["member","type","activity","date","value","note"]]
