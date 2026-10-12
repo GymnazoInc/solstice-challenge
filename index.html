@@ -10,7 +10,7 @@ html{background:var(--deep)}
 body{margin:0;font-family:var(--sans);color:var(--cream);font-size:19px;line-height:1.4;min-height:100vh;background:radial-gradient(ellipse 130% 60% at 50% 0%,var(--navy3) 0%,var(--navy) 55%,var(--deep) 100%) fixed}
 .wrap{max-width:600px;margin:0 auto;padding:12px 14px 80px;position:relative;z-index:2}
 #snow,#confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
-#snow{z-index:1}#confetti{z-index:20}
+#snow{z-index:1}#confetti{z-index:29}
 .stars{position:fixed;inset:0;z-index:0;pointer-events:none;background-image:radial-gradient(1.5px 1.5px at 12% 14%,#f7efdf 50%,transparent),radial-gradient(1px 1px at 28% 8%,#f7efdf 50%,transparent),radial-gradient(1.4px 1.4px at 72% 12%,#f7efdf 50%,transparent),radial-gradient(1px 1px at 88% 22%,#f7efdf 50%,transparent),radial-gradient(1.2px 1.2px at 52% 5%,#f7efdf 50%,transparent),radial-gradient(1px 1px at 6% 36%,#f7efdf 50%,transparent),radial-gradient(1.2px 1.2px at 94% 44%,#f7efdf 50%,transparent);opacity:.7;animation:tw 5s ease-in-out infinite alternate}
 @keyframes tw{to{opacity:.35}}
 header{text-align:center;padding:10px 0 4px}
@@ -108,9 +108,17 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 .rform .tm input{flex:1;min-width:0}.rform .row2{display:flex;gap:10px}.rform .row2>*{flex:1}
 .steps{display:flex;gap:12px;justify-content:center;margin:12px 0}.steps .st{width:72px;height:72px;border-radius:50%;border:4px solid var(--ice);display:flex;align-items:center;justify-content:center;font-size:34px;color:var(--ice)}.steps .st.on{background:var(--gold);border-color:var(--gold2);color:var(--navy);animation:pop .5s cubic-bezier(.3,1.8,.5,1)}
 .rpl{font-size:16px;color:var(--ice);text-align:center}.rpn{width:100%;margin:8px 0 0;font-size:19px;min-height:56px}
+.shim{position:relative;overflow:hidden}.shim::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.55) 50%,transparent 70%);transform:translateX(-120%);animation:shim 3.6s ease-in-out infinite;pointer-events:none}
+@keyframes shim{60%,100%{transform:translateX(120%)}}
+.badge small{display:block;font-weight:400;font-size:14px;margin-top:4px;opacity:.85}
+#bpop{position:fixed;inset:0;z-index:28;background:rgba(5,10,30,.82);display:flex;align-items:center;justify-content:center;padding:20px}
+#bpop .in{max-width:420px;width:100%;text-align:center;background:linear-gradient(160deg,var(--navy3),var(--navy));border:3px solid var(--gold);border-radius:28px;padding:26px 20px;box-shadow:0 0 60px rgba(227,176,75,.5);animation:pop .7s cubic-bezier(.3,1.8,.5,1)}
+#bpop .medal{width:170px;height:170px;margin:6px auto 14px;border-radius:50%;background:linear-gradient(#f6d68b,var(--gold));border:6px solid var(--gold2);display:flex;align-items:center;justify-content:center;font-size:92px;box-shadow:0 0 40px rgba(242,207,126,.8)}
+#bpop h2{font-size:30px;color:var(--gold2)}
+.pkall{display:flex;gap:10px;margin:10px 0}.pkall button{min-height:56px;font-size:18px}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style></head><body>
-<div class="stars"></div><canvas id="snow"></canvas><canvas id="confetti"></canvas><div id="toast" role="status" aria-live="polite"></div>
+<div class="stars"></div><canvas id="snow"></canvas><canvas id="confetti"></canvas><div id="toast" role="status" aria-live="polite"></div><div id="bpop" class="hide" role="dialog" aria-modal="true" aria-labelledby="bpt"><div class="in"><div class="small" style="letter-spacing:.2em;color:var(--gold)">NEW BADGE!</div><div class="medal shim" id="bpi">🏅</div><h2 id="bpt"></h2><p id="bpd" style="margin-top:0"></p><button class="gold big" id="bpok">Yay! 🎉</button></div></div>
 <div class="wrap">
 <header>
 <svg class="sun" viewBox="0 0 340 155" aria-hidden="true"><defs><radialGradient id="g" cx="50%" cy="100%" r="60%"><stop offset="0" stop-color="#f6d68b"/><stop offset="1" stop-color="#e3b04b"/></radialGradient></defs>
@@ -166,7 +174,7 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 <div class="stats"><div class="stat"><b><span class="flame" id="fl">🔥</span> <span id="cur">0</span></b><span class="small">days in a row</span></div><div class="stat"><b>⭐ <span id="lon">0</span></b><span class="small">best streak</span></div></div>
 </div>
 <div class="card" id="actcard"><h2>My Goals 🎯</h2><div class="small">Tap a button to add what you did. Made a mistake? Tap Undo.</div><div id="chal"></div><input id="aq" type="text" placeholder="🔍 Search my activities" aria-label="Search activities" style="margin-top:12px"><div id="acts"></div><button class="gold big addmore" id="addMore" style="min-height:76px;font-size:24px">＋ Add more activities</button><div id="others"></div></div>
-<div id="picker" class="hide"><div class="in"><h2 id="pkTitle">Pick your activities</h2><div class="small" id="pkHelp"></div><input id="pkq" type="text" placeholder="🔍 Search activities" aria-label="Search activities"><div id="pkl"></div></div><div id="pkbar"><div class="in2"><button class="ghost hide" id="pkCancel" style="background:var(--navy2)">Cancel</button><button class="gold" id="pkSave">Save</button></div></div></div>
+<div id="picker" class="hide"><div class="in"><h2 id="pkTitle">Pick your activities</h2><div class="small" id="pkHelp"></div><div class="pkall"><button class="gold" id="pkAll">✔ Select all</button><button class="ghost" id="pkNone">Clear all</button></div><input id="pkq" type="text" placeholder="🔍 Search activities" aria-label="Search activities"><div id="pkl"></div></div><div id="pkbar"><div class="in2"><button class="ghost hide" id="pkCancel" style="background:var(--navy2)">Cancel</button><button class="gold" id="pkSave">Save</button></div></div></div>
 <div class="card"><h2>My Calendar</h2><div class="small">Gold = done. Tap a day to fill it in.</div><div class="grid" id="grid"></div></div>
 <div class="card"><h2>My Badges</h2><div class="badges" id="badges"></div></div>
 </div>
@@ -215,11 +223,12 @@ function render(){
  $('grid').innerHTML=g;
  $('grid').querySelectorAll('button').forEach(b=>b.onclick=()=>{if(b.dataset.d<=t){SEL=b.dataset.d;render();$('checkcard').scrollIntoView({behavior:RM?'auto':'smooth'})}});
  renderActs();if(ME.activities&&ME.activities.length&&!ME.picksSaved&&!PKSHOWN){PKSHOWN=true;openPicker(true)}
- $('badges').innerHTML=ME.milestones.map(m=>{const got=ME.badges.includes(m.n);return `<div class="badge ${got?'got':''}"><span class="ic">${got?(ICONS[m.n]||'🏅'):'🔒'}</span>${esc(m.label)}</div>`}).join('');
+ $('badges').innerHTML=(ME.badgeList||[]).map(m=>`<div class="badge ${m.got?'got shim':''}"><span class="ic">${m.got?m.icon:'🔒'}</span>${esc(m.label)}<small>${esc(m.desc)}</small></div>`).join('');
 }
 const ACTMSG=[[100,'🏆 Finished! Amazing work!'],[75,'🔥 75% done. Almost there!'],[50,'⭐ Halfway there. Keep going!'],[25,'❄️ 25% done. Great start!']];
 function actMsg(p){const m=ACTMSG.find(x=>p>=x[0]);return m?m[1]:'Tap a button to begin.'}
 function nf(n){return Number(n).toLocaleString()}
+function dv(a,n){return a.dec?Number((n/Math.pow(10,a.dec)).toFixed(a.dec)).toLocaleString(undefined,{maximumFractionDigits:a.dec}):nf(n)}
 const PH={1:['I','Capacity','Discover where you are today. One-time, no pass or fail.'],2:['II','Acquire','Build resilience by accumulating work and time.'],3:['III','Practice','Do each one three times.'],0:['•','Other','More activities from the studio.']};
 function phSec(list,ALL,body,cntFn){return [1,2,3,0].map(p=>{const L=list.filter(a=>(a.phase||0)===p);if(!L.length)return '';const inP=ALL.filter(a=>(a.phase||0)===p);const t=PH[p];
  return `<section class="ph p${p}"><div class="phh"><h3>${t[1]}</h3><div class="cnt">${cntFn(inP)}</div></div><p class="phd">${t[2]}</p>${L.map(body).join('')}</section>`}).join('')}
@@ -237,7 +246,7 @@ function bindRepeat(){
  document.querySelectorAll('[data-rpn]').forEach(i=>i.oninput=()=>RN[i.dataset.rpn]=i.value);
  document.querySelectorAll('[data-rdo]').forEach(b=>b.onclick=async()=>{const id=+b.dataset.rdo,e=$('rperr'+id);b.disabled=true;e.textContent='';
   const {ok,j}=await api('/api/repeat',{activity_id:id,note:RN[id]||''});if(!ok){b.disabled=false;e.textContent=j.error||'Something went wrong. Please try again.';return}
-  RN[id]='';ME=j;renderActs();if(j.complete){toast('All '+j.count+' done ✔ Amazing!');confetti(320)}else{toast('Done '+j.count+' of '+(ME.activities.find(x=>x.id===id).target)+'! 🎉');confetti(90)}lb()});
+  RN[id]='';ME=j;renderActs();badgePop(j.newBadges);if(j.complete){toast('All '+j.count+' done ✔ Amazing!');confetti(320)}else{toast('Done '+j.count+' of '+(ME.activities.find(x=>x.id===id).target)+'! 🎉');confetti(90)}lb()});
  document.querySelectorAll('[data-rundo2]').forEach(b=>b.onclick=async()=>{const id=+b.dataset.rundo2;const {ok,j}=await api('/api/repeat/undo',{activity_id:id});if(ok){ME=j;renderActs();toast('Last one removed.');lb()}else $('rperr'+id).textContent=j.error||'Nothing to undo.'})}
 let ROPEN=null;const DR={};
 function fmtT(s){const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60,p=n=>String(n).padStart(2,'0');return h?h+':'+p(m)+':'+p(x):m+':'+p(x)}
@@ -258,23 +267,23 @@ function bindOnce(){
  document.querySelectorAll('[data-rundo]').forEach(b=>b.onclick=async()=>{if(!confirm('Mark this one as not done? Your saved result will be removed.'))return;const {ok,j}=await api('/api/result/undo',{activity_id:+b.dataset.rundo});if(ok){ME=j;ROPEN=null;renderActs();toast('Marked as not done.');lb()}})}
 async function sendResult(id){const d=DR[id]||{},e=$('rerr'+id);if(e)e.textContent='';
  const {ok,j}=await api('/api/result',{activity_id:id,minutes:d.min,seconds:d.sec,weight:d.wt,unit:d.unit||'lb'});if(!ok){if(e)e.textContent=j.error||'Something went wrong. Please try again.';return}
- ME=j;ROPEN=null;renderActs();if(j.first){toast('Recorded! Great effort 🎉');confetti(160)}else toast('Result updated ✔');lb()}
+ ME=j;ROPEN=null;renderActs();badgePop(j.newBadges);if(j.first){toast('Recorded! Great effort 🎉');confetti(160)}else toast('Result updated ✔');lb()}
 function renderActs(){const ALL=ME.activities||[],aq=$('aq').value,S=!!aq.trim(),A=S?ALL.filter(a=>match(a.name,aq)).sort((x,y)=>y.chosen-x.chosen):ALL.filter(a=>a.chosen),O=S?[]:ALL.filter(a=>!a.chosen);$('chal').innerHTML=chalBox(ALL);$('actcard').classList.toggle('hide',!ALL.length);$('addMore').classList.toggle('hide',!ALL.length);
- $('others').innerHTML=O.length?`<h2 style="margin-top:24px;font-size:24px">All activities</h2>`+phSec(O,ALL,a=>`<div class="mini"><div><b>${esc(a.name)}</b><span class="small">${a.kind==='repeat'?(a.done?'All '+a.target+' done ✔':'Done '+a.total+' of '+a.target):a.kind==='once'?(a.done?'Done ✔':'One effort · no pass or fail'):nf(a.total)+' of '+nf(a.target)+' '+esc(a.unit)+' · '+a.pct+'%'}</span></div><button data-pick="${a.id}">Add to my goals</button></div>`,L=>L.filter(a=>a.done).length+' of '+L.length+' done'):'';
+ $('others').innerHTML=O.length?`<h2 style="margin-top:24px;font-size:24px">All activities</h2>`+phSec(O,ALL,a=>`<div class="mini"><div><b>${esc(a.name)}</b><span class="small">${a.kind==='repeat'?(a.done?'All '+a.target+' done ✔':'Done '+a.total+' of '+a.target):a.kind==='once'?(a.done?'Done ✔':'One effort · no pass or fail'):dv(a,a.total)+' of '+dv(a,a.target)+' '+esc(a.unit)+' · '+a.pct+'%'}</span></div><button data-pick="${a.id}">Add to my goals</button></div>`,L=>L.filter(a=>a.done).length+' of '+L.length+' done'):'';
  document.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>savePicks([...ALL.filter(a=>a.chosen).map(a=>a.id),+b.dataset.pick]));
  if(!A.length)$('acts').innerHTML=aq.trim()?'<p>No activities match that. Try fewer letters.</p>':'<p>You haven\'t picked any goals yet. Tap the button below to choose!</p>';
  const open={};document.querySelectorAll('.cin').forEach(i=>open[i.dataset.id]=i.value);
- if(A.length)$('acts').innerHTML=phSec(A,ALL,a=>{if(a.kind==='once')return onceCard(a);if(a.kind==='repeat')return repeatCard(a);const c1=Math.max(1,Math.round(a.target*.1)),c2=Math.max(1,Math.round(a.target*.25));
+ if(A.length)$('acts').innerHTML=phSec(A,ALL,a=>{if(a.kind==='once')return onceCard(a);if(a.kind==='repeat')return repeatCard(a);const c1=/^min/i.test(a.unit)?1:Math.max(1,Math.round(a.target*.1)),c2=Math.max(1,Math.round(a.target*.25)),S=a.dec?Math.pow(10,a.dec):1,c3=a.dec?Math.round(a.target*.5):0;
   return `<div class="act-card ${a.done?'fin':''}"><div class="act-top"><b>${esc(a.name)}</b><span>${a.pct}%</span></div>${a.chosen?'':`<button data-pick="${a.id}" style="margin:8px 0;min-height:56px">＋ Add to my list</button>`}
-  <div class="small" style="font-size:19px">${nf(a.total)} of ${nf(a.target)} ${esc(a.unit)}</div>
+  <div class="small" style="font-size:19px">${dv(a,a.total)} of ${dv(a,a.target)} ${esc(a.unit)}</div>
   <div class="abar" role="progressbar" aria-valuenow="${a.pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${Math.min(100,a.pct)}%"></i></div>
   <div class="amsg">${actMsg(a.pct)}</div>
-  ${a.done?'':`<div class="chips"><button class="gold" data-add="${a.id}" data-n="${c1}">+${nf(c1)}</button><button class="gold" data-add="${a.id}" data-n="${c2}">+${nf(c2)}</button></div>
-  <div class="custom"><input class="cin" data-id="${a.id}" type="tel" inputmode="numeric" placeholder="Type a number" value="${esc(open[a.id]||'')}" aria-label="Amount of ${esc(a.unit)}"><button data-addc="${a.id}">Add</button></div>`}
+  ${a.done?'':`<div class="chips"><button class="gold" data-add="${a.id}" data-n="${c1/S}">+${dv(a,c1)}</button><button class="gold" data-add="${a.id}" data-n="${c2/S}">+${dv(a,c2)}</button>${c3?`<button class="gold full" data-add="${a.id}" data-n="${c3/S}">+${dv(a,c3)} ${esc(a.unit)}</button>`:''}</div>
+  <div class="custom"><input class="cin" data-id="${a.id}" type="${a.dec?'text':'tel'}" inputmode="${a.dec?'decimal':'numeric'}" placeholder="${a.dec?'Miles, like 0.3':'Type a number'}" value="${esc(open[a.id]||'')}" aria-label="Amount of ${esc(a.unit)}"><button data-addc="${a.id}">Add</button></div>`}
   <button class="ghost" data-undo="${a.id}" style="margin-top:10px;min-height:56px">↩ Undo last</button>
   <div class="notes"><button class="nh" data-nh="${a.id}">💬 ${a.notes||0} note${a.notes===1?'':'s'} of encouragement ${OPEN.has(a.id)?'▲':'▼'}</button><div class="np ${OPEN.has(a.id)?'':'hide'}" id="np${a.id}"></div></div><div class="err" id="aerr${a.id}" role="alert"></div></div>`},L=>L.filter(a=>a.done).length+' of '+L.length+' done'+(L.filter(a=>a.kind==='repeat'&&a.total>0&&!a.done).length?' · '+L.filter(a=>a.kind==='repeat'&&a.total>0&&!a.done).length+' started':''));
  document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>logAct(+b.dataset.add,+b.dataset.n));
- document.querySelectorAll('[data-addc]').forEach(b=>b.onclick=()=>{const i=document.querySelector('.cin[data-id="'+b.dataset.addc+'"]');logAct(+b.dataset.addc,parseInt(i.value.replace(/[^0-9]/g,''),10))});
+ document.querySelectorAll('[data-addc]').forEach(b=>b.onclick=()=>{const i=document.querySelector('.cin[data-id="'+b.dataset.addc+'"]');const A0=ME.activities.find(x=>x.id===+b.dataset.addc);logAct(+b.dataset.addc,A0&&A0.dec?parseFloat(i.value.replace(/[^0-9.]/g,'')):parseInt(i.value.replace(/[^0-9]/g,''),10))});
  document.querySelectorAll('[data-undo]').forEach(b=>b.onclick=()=>undoAct(+b.dataset.undo));
  document.querySelectorAll('[data-nh]').forEach(b=>b.onclick=()=>toggleNotes(+b.dataset.nh));
  bindOnce();bindRepeat();OPEN.forEach(id=>drawNotes(id))}
@@ -300,7 +309,7 @@ let PK=new Set(),PKFIRST=false,PKSHOWN=false;
 function match(name,q){q=q.trim().toLowerCase();return !q||String(name).toLowerCase().indexOf(q)>-1}
 function drawPicker(){const q=$('pkq').value;const L=ME.activities.filter(a=>match(a.name,q));
  L.sort((a,b)=>(PK.has(b.id)-PK.has(a.id))||0);
- $('pkl').innerHTML=L.length?phSec(L,ME.activities,a=>`<label class="pk ${PK.has(a.id)?'on':''}"><input type="checkbox" data-id="${a.id}" ${PK.has(a.id)?'checked':''}><span>${esc(a.name)}<small>${a.kind==='repeat'?'Do it '+a.target+' times, one at a time':a.kind==='once'?'One effort · you record your '+({time:'time',weight:'weight',both:'weight (and time if you like)',none:'result'}[a.record]||'result'):nf(a.target)+' '+esc(a.unit)+(a.total?' · you have '+nf(a.total)+' logged':'')}</small></span></label>`,P=>P.filter(a=>PK.has(a.id)).length+' of '+P.length+' picked'):'<p>No activities match.</p>';
+ $('pkl').innerHTML=L.length?phSec(L,ME.activities,a=>`<label class="pk ${PK.has(a.id)?'on':''}"><input type="checkbox" data-id="${a.id}" ${PK.has(a.id)?'checked':''}><span>${esc(a.name)}<small>${a.kind==='repeat'?'Do it '+a.target+' times, one at a time':a.kind==='once'?'One effort · you record your '+({time:'time',weight:'weight',both:'weight (and time if you like)',none:'result'}[a.record]||'result'):dv(a,a.target)+' '+esc(a.unit)+(a.total?' · you have '+dv(a,a.total)+' logged':'')}</small></span></label>`,P=>P.filter(a=>PK.has(a.id)).length+' of '+P.length+' picked'):'<p>No activities match.</p>';
  $('pkl').querySelectorAll('input').forEach(i=>i.onchange=()=>{i.checked?PK.add(+i.dataset.id):PK.delete(+i.dataset.id);i.parentNode.classList.toggle('on',i.checked);$('pkSave').textContent='Save ('+PK.size+' picked)'})
  $('pkSave').textContent='Save ('+PK.size+' picked)'}
 function openPicker(first){PKFIRST=first;PK=new Set(ME.activities.filter(a=>a.chosen).map(a=>a.id));$('pkq').value='';
@@ -309,17 +318,21 @@ function openPicker(first){PKFIRST=first;PK=new Set(ME.activities.filter(a=>a.ch
  $('pkCancel').classList.toggle('hide',first);$('picker').classList.remove('hide');drawPicker()}
 $('pkq').oninput=drawPicker;$('aq').oninput=renderActs;$('addMore').onclick=()=>openPicker(false);$('pkCancel').onclick=()=>$('picker').classList.add('hide');
 $('pkSave').onclick=()=>savePicks([...PK]);
+$('pkAll').onclick=()=>{ME.activities.forEach(a=>PK.add(a.id));drawPicker()};$('pkNone').onclick=()=>{PK.clear();drawPicker()};
 async function savePicks(ids){const {ok,j}=await api('/api/picks',{ids});if(!ok){toast(j.error||'Something went wrong. Please try again.');return}ME=j;$('picker').classList.add('hide');render();toast('Saved! ✔')}
 async function logAct(id,n){const e=$('aerr'+id);if(!(n>0)){e.textContent='Please type a number first.';return}const before=ME.activities.find(a=>a.id===id).pct;
  const {ok,j}=await api('/api/progress',{activity_id:id,amount:n});if(!ok){e.textContent=j.error||'Something went wrong. Please try again.';return}ME=j;renderActs();const a=ME.activities.find(x=>x.id===id);
- const hit=[100,75,50,25].find(t=>before<t&&a.pct>=t);if(hit){toast(actMsg(hit));confetti(hit===100?300:120)}else toast('Added +'+nf(j.added)+' '+a.unit+' ✔');lb()}
+ const hit=[100,75,50,25].find(t=>before<t&&a.pct>=t);if(j.newBadges&&j.newBadges.length)badgePop(j.newBadges);else if(hit){toast(actMsg(hit));confetti(hit===100?300:120)}else toast('Added +'+dv(a,j.added)+' '+a.unit+' ✔');lb()}
 async function undoAct(id){const e=$('aerr'+id);const {ok,j}=await api('/api/progress/undo',{activity_id:id});if(!ok){e.textContent=j.error||'Nothing to undo.';return}ME=j;renderActs();toast('Last entry removed.');lb()}
-async function wins(){const {j}=await api('/api/wins');$('wins').innerHTML=(j.wins&&j.wins.length)?`<div style="margin-bottom:6px">${j.members} members taking part</div>`+j.wins.map(w=>`<div class="win">🏅 <b>${esc(w.name)}</b> — ${esc(w.label)} <span class="small">· ${new Date(w.at*1000).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span></div>`).join(''):'No wins yet. Be the first! 🌟'}
+async function wins(){const {j}=await api('/api/wins');$('wins').innerHTML=(j.wins&&j.wins.length)?`<div style="margin-bottom:6px">${j.members} members taking part</div>`+j.wins.map(w=>`<div class="win">${esc(w.icon||'🏅')} <b>${esc(w.name)}</b> earned ${esc(w.label)} <span class="small">· ${new Date(w.at*1000).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span></div>`).join(''):'No wins yet. Be the first! 🌟'}
+const BQ=[];function badgePop(list){if(!list||!list.length)return;list.forEach(b=>BQ.push(b));if($('bpop').classList.contains('hide'))nextBadge();render();wins()}
+function nextBadge(){const b=BQ.shift();if(!b){$('bpop').classList.add('hide');return}$('bpi').textContent=b.icon;$('bpt').textContent=b.label;$('bpd').textContent=b.desc+'. You earned it! 💙';$('bpop').classList.remove('hide');$('bpok').focus();confetti(380)}
+$('bpok').onclick=nextBadge;
 let tt;function toast(m){const t=$('toast');t.textContent=m;t.className='show';clearTimeout(tt);tt=setTimeout(()=>t.className='',4000)}
 $('go').onclick=async()=>{$('lerr').textContent='';const {ok,j}=await api(MODE==='new'?'/api/register':'/api/login',{name:$('name').value,pin:$('pin').value});if(!ok){$('lerr').textContent=j.error||'Something went wrong. Please try again.';return}ME=j;SEL=null;render();if(j.new){toast('Welcome, '+j.name+'! ❄️');confetti(80)}else toast('Welcome back, '+j.name+'! ☀️');};
 $('out').onclick=async()=>{await api('/api/logout',{});ME=null;PKSHOWN=false;ROPEN=null;OPEN.clear();Object.keys(COM).forEach(k=>delete COM[k]);$('picker').classList.add('hide');$('pin').value='';$('back').onclick();render()};
 async function doCheckin(done){$('cerr').textContent='';const wasDone=SEL in ME.days;const {ok,j}=await api('/api/checkin',{date:SEL,done:done,note:$('note').value});if(!ok){$('cerr').textContent=j.error||'Something went wrong. Please try again.';return}ME=j;render();
- if(j.newBadges.length){const m=ME.milestones.find(x=>x.n===j.newBadges[j.newBadges.length-1]);toast('🏅 New badge: '+m.label);confetti(j.newBadges.includes(62)?420:220)}else if(!done)toast('Check-in removed.');else if(wasDone)toast('Note saved ✔');else{toast(['You did it! 🎉','Nice work! ⭐','Way to go! 💪','Another day done! ☀️'][Math.random()*4|0]);confetti(70)}wins();lb()}
+ if(j.newBadges.length){badgePop(j.newBadges)}else if(!done)toast('Check-in removed.');else if(wasDone)toast('Note saved ✔');else{toast(['You did it! 🎉','Nice work! ⭐','Way to go! 💪','Another day done! ☀️'][Math.random()*4|0]);confetti(70)}wins();lb()}
 $('save').onclick=()=>doCheckin(true);$('undo').onclick=()=>doCheckin(false);
 function confetti(n){if(RM)return;const c=$('confetti'),x=c.getContext('2d');c.width=innerWidth;c.height=innerHeight;const cols=['#e3b04b','#f2cf7e','#f7efdf','#bcd6f2','#ffffff'];
  const P=[...Array(n)].map(()=>({x:Math.random()*c.width,y:-20-Math.random()*c.height*.5,vx:Math.random()*2-1,vy:2+Math.random()*4,r:5+Math.random()*9,c:cols[Math.random()*5|0],a:Math.random()*6,f:Math.random()<.4}));let f=0;

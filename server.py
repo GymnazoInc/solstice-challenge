@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 TZ = ZoneInfo("America/Los_Angeles")
 START, END = date(2026,10,21), date(2026,12,21)
 TOTAL = 62
-MILESTONES = [1,7,14,21,30,45,62]
+MILESTONES = [1]
 DB = os.environ.get("DB_PATH") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "solstice.db")
 PORT = int(os.environ.get("PORT", 8077))
 BETA_DB = os.environ.get("BETA_DB_PATH") or os.path.join(os.path.dirname(os.path.abspath(DB)), "solstice-beta.db")
@@ -50,6 +50,8 @@ if "repeat_count" not in _cols: db.execute("ALTER TABLE activities ADD COLUMN re
 db.execute("CREATE TABLE IF NOT EXISTS repeats(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, activity_id INTEGER, day TEXT, note TEXT, created REAL)")
 db.execute("CREATE INDEX IF NOT EXISTS repeats_ua ON repeats(user_id, activity_id)")
 if "pin_changed" not in [r[1] for r in db.execute("PRAGMA table_info(users)")]: db.execute("ALTER TABLE users ADD COLUMN pin_changed REAL")
+for c_ in (MAIN,):
+    c_.execute("CREATE TABLE IF NOT EXISTS badges(user_id INTEGER, key TEXT, created REAL, PRIMARY KEY(user_id, key))")
 BETA = sqlite3.connect(BETA_DB, check_same_thread=False, isolation_level=None)
 init_schema(BETA)
 def migrate(c):
@@ -60,12 +62,26 @@ def migrate(c):
     c.execute("CREATE TABLE IF NOT EXISTS repeats(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, activity_id INTEGER, day TEXT, note TEXT, created REAL)")
     if "pin_changed" not in [r[1] for r in c.execute("PRAGMA table_info(users)")]: c.execute("ALTER TABLE users ADD COLUMN pin_changed REAL")
 migrate(BETA)
-BETA_TABLES = ("users","sessions","checkins","wins","progress","user_activities","user_picks","comments","reactions","results","repeats")
+def migrate2(c):
+    c.execute("CREATE TABLE IF NOT EXISTS badges(user_id INTEGER, key TEXT, created REAL, PRIMARY KEY(user_id, key))")
+    if "decimals" not in [r[1] for r in c.execute("PRAGMA table_info(activities)")]: c.execute("ALTER TABLE activities ADD COLUMN decimals INTEGER DEFAULT 0")
+    # carry over old first-check-in wins once
+    if not c.execute("SELECT 1 FROM meta WHERE k='badges_v1'").fetchone():
+        c.execute("INSERT OR IGNORE INTO badges SELECT user_id,'first',created FROM wins WHERE milestone=1")
+        c.execute("INSERT OR REPLACE INTO meta VALUES('badges_v1','1')")
+    # Loaded Carry: feet -> miles, stored in hundredths of a mile (target 100 = 1.00 mi)
+    for aid, unit, tgt in c.execute("SELECT id,unit,target FROM activities WHERE lower(name) LIKE '%loaded carry%' AND COALESCE(decimals,0)=0").fetchall():
+        if str(unit).lower() in ("ft","feet"):
+            for pid, amt in c.execute("SELECT id,amount FROM progress WHERE activity_id=?", (aid,)).fetchall():
+                c.execute("UPDATE progress SET amount=? WHERE id=?", (max(1, round(amt * 100 / 5280)), pid))
+        c.execute("UPDATE activities SET unit='miles',target=100,decimals=2 WHERE id=?", (aid,))
+migrate2(MAIN); migrate2(BETA)
+BETA_TABLES = ("badges","users","sessions","checkins","wins","progress","user_activities","user_picks","comments","reactions","results","repeats")
 def beta_sync_activities():
     """Beta uses the same activity list as the real challenge (copied from the main DB, same ids)."""
-    rows = MAIN.execute("SELECT id,name,target,unit,sort,active,phase,kind,record_type,repeat_count FROM activities").fetchall()
+    rows = MAIN.execute("SELECT id,name,target,unit,sort,active,phase,kind,record_type,repeat_count,decimals FROM activities").fetchall()
     BETA.execute("DELETE FROM activities")
-    BETA.executemany("INSERT INTO activities(id,name,target,unit,sort,active,phase,kind,record_type,repeat_count) VALUES(?,?,?,?,?,?,?,?,?,?)", rows)
+    BETA.executemany("INSERT INTO activities(id,name,target,unit,sort,active,phase,kind,record_type,repeat_count,decimals) VALUES(?,?,?,?,?,?,?,?,?,?,?)", rows)
 def beta_wipe():
     for t in BETA_TABLES: BETA.execute("DELETE FROM %s" % t)
     beta_sync_activities()
@@ -85,6 +101,38 @@ def hp(pin, salt): return hashlib.pbkdf2_hmac("sha256", pin.encode(), bytes.from
 def th(t): return hashlib.sha256(t.encode()).hexdigest()
 FED = federation.Fed(MAIN, LOCK, hp)
 db = _DBProxy()
+# Badges: add more by appending to BADGES. kind "first" = first check-in; "phase" = every active activity in that bucket done;
+# "names" = every activity whose name contains one of the listed phrases (case-insensitive) done.
+BADGES = [
+    {"key":"first","label":"First check-in","icon":"❄️","desc":"Checked in for the first time","kind":"first"},
+    {"key":"capacity","label":"Capacity Badge","icon":"💪","desc":"Finished every Capacity activity","kind":"phase","phase":1},
+    {"key":"acquire","label":"Acquire Badge","icon":"🏔️","desc":"Finished every Acquire activity","kind":"phase","phase":2},
+    {"key":"practice","label":"Practice Badge","icon":"🌙","desc":"Finished every Practice activity","kind":"phase","phase":3},
+    {"key":"selflove","label":"Self Love Badge","icon":"💖","desc":"Cold plunge, 10 hugs, TrueStretch and journaling all done","kind":"names",
+     "names":[["ocean plunge","cold shower"],["hugs"],["truestretch"],["journal"]]},
+]
+BADGE = {b["key"]:b for b in BADGES}
+def badge_pub(b): return {"key":b["key"],"label":b["label"],"icon":b["icon"],"desc":b["desc"]}
+def badge_ok(b, uid, acts):
+    if b["kind"] == "first": return db.execute("SELECT 1 FROM checkins WHERE user_id=? LIMIT 1", (uid,)).fetchone() is not None
+    if b["kind"] == "phase":
+        L = [a for a in acts if a["phase"] == b["phase"]]
+        return bool(L) and all(a["done"] for a in L)
+    if b["kind"] == "names":
+        for alts in b["names"]:
+            L = [a for a in acts if any(x in a["name"].casefold() for x in alts)]
+            if not L or not any(a["done"] for a in L): return False
+        return True
+    return False
+def sync_badges(uid):
+    """Award newly earned badges (and drop ones no longer earned, e.g. after an undo). Returns new badge dicts."""
+    acts = activities_for(uid); have = {r[0] for r in db.execute("SELECT key FROM badges WHERE user_id=?", (uid,))}; new = []
+    for b in BADGES:
+        ok = badge_ok(b, uid, acts)
+        if ok and b["key"] not in have:
+            db.execute("INSERT OR IGNORE INTO badges VALUES(?,?,?)", (uid, b["key"], time.time())); new.append(badge_pub(b))
+        elif not ok and b["key"] in have: db.execute("DELETE FROM badges WHERE user_id=? AND key=?", (uid, b["key"]))
+    return new
 def label(n): return {1:"First check-in",7:"One week strong",14:"Two weeks!",21:"Three weeks!",30:"30 days!",45:"45 days!",62:"Solstice complete!"}[n]
 
 def stats(uid):
@@ -114,7 +162,7 @@ def activities_for(uid):
     res = {r[0]:r[1:] for r in db.execute("SELECT activity_id,seconds,weight,wunit FROM results WHERE user_id=?", (uid,))}
     reps = {}
     for aid_,day_,note_ in db.execute("SELECT activity_id,day,note FROM repeats WHERE user_id=? ORDER BY id", (uid,)): reps.setdefault(aid_, []).append({"day":day_,"note":note_ or ""})
-    for aid,name,target,unit,phase,kind,rec,rc in db.execute("SELECT id,name,target,unit,COALESCE(phase,0),COALESCE(kind,'chunked'),COALESCE(record_type,'none'),COALESCE(repeat_count,3) FROM activities WHERE active=1 ORDER BY sort,id").fetchall():
+    for aid,name,target,unit,phase,kind,rec,rc,dec in db.execute("SELECT id,name,target,unit,COALESCE(phase,0),COALESCE(kind,'chunked'),COALESCE(record_type,'none'),COALESCE(repeat_count,3),COALESCE(decimals,0) FROM activities WHERE active=1 ORDER BY sort,id").fetchall():
         notes = db.execute("SELECT COUNT(*) FROM comments WHERE activity_id=? AND hidden=0",(aid,)).fetchone()[0]
         if kind == "repeat":
             L = reps.get(aid, []); n = min(len(L), rc)
@@ -127,15 +175,15 @@ def activities_for(uid):
             continue
         tot = db.execute("SELECT COALESCE(SUM(amount),0) FROM progress WHERE user_id=? AND activity_id=?", (uid,aid)).fetchone()[0]
         tot = min(tot, target)
-        out.append({"id":aid,"name":name,"target":target,"unit":unit,"phase":phase,"kind":"chunked","record":"none","total":tot,"pct":int(tot*100//target) if target else 0,"done":tot>=target,"chosen":aid in chosen,"notes":notes})
+        out.append({"id":aid,"name":name,"target":target,"unit":unit,"phase":phase,"kind":"chunked","record":"none","total":tot,"pct":int(tot*100//target) if target else 0,"done":tot>=target,"chosen":aid in chosen,"notes":notes,"dec":dec})
     return out
 
 def me_payload(u):
     s = stats(u[0])
     acts = activities_for(u[0])
-    wins = [r[0] for r in db.execute("SELECT milestone FROM wins WHERE user_id=? ORDER BY milestone",(u[0],))]
+    got = {r[0] for r in db.execute("SELECT key FROM badges WHERE user_id=?",(u[0],))}
     return {"name":u[1], "today":today().isoformat(), "start":start_end()[0].isoformat(), "end":start_end()[1].isoformat(), "beta":is_beta(),
-            "total":TOTAL, "milestones":[{"n":n,"label":label(n)} for n in MILESTONES], "badges":wins, "activities":acts, "activitiesDone":sum(1 for a in acts if a["done"]),"picksSaved":bool(db.execute("SELECT 1 FROM user_picks WHERE user_id=?", (u[0],)).fetchone()), **s}
+            "total":TOTAL, "badgeList":[dict(badge_pub(b), got=b["key"] in got) for b in BADGES], "activities":acts, "activitiesDone":sum(1 for a in acts if a["done"]),"picksSaved":bool(db.execute("SELECT 1 FROM user_picks WHERE user_id=?", (u[0],)).fetchone()), **s}
 
 def fdate(t): return datetime.fromtimestamp(t, TZ).date().isoformat() if t else ""
 def member_rows():
@@ -207,9 +255,9 @@ class H(http.server.BaseHTTPRequestHandler):
             u = user_from(self)
             return self.send(200, me_payload(u)) if u else self.send(401, {"error":"auth"})
         if p == "/api/wins":
-            rows = db.execute("SELECT u.name,w.milestone,w.created FROM wins w JOIN users u ON u.id=w.user_id ORDER BY w.created DESC LIMIT 30").fetchall()
+            rows = [r for r in db.execute("SELECT u.name,w.key,w.created FROM badges w JOIN users u ON u.id=w.user_id ORDER BY w.created DESC LIMIT 40").fetchall() if r[1] in BADGE][:30]
             cnt = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-            return self.send(200, {"members":cnt, "wins":[{"name":r[0],"n":r[1],"label":label(r[1]),"at":r[2]} for r in rows]})
+            return self.send(200, {"members":cnt, "wins":[{"name":r[0],"key":r[1],"label":BADGE[r[1]]["label"],"icon":BADGE[r[1]]["icon"],"at":r[2]} for r in rows]})
         if p == "/api/leaderboard":
             u = user_from(self)
             rows = []
@@ -370,10 +418,12 @@ class H(http.server.BaseHTTPRequestHandler):
         db.execute("INSERT OR REPLACE INTO user_picks VALUES(?,?)", (u[0], time.time()))
         self.send(200, me_payload(u))
     def log_progress(self, u, b):
-        try: aid = int(b.get("activity_id")); amt = int(b.get("amount"))
-        except Exception: return self.send(400, {"error":"Please type a whole number."})
-        a = db.execute("SELECT target,COALESCE(kind,'chunked') FROM activities WHERE id=? AND active=1", (aid,)).fetchone()
+        try: aid = int(b.get("activity_id")); raw = float(b.get("amount"))
+        except Exception: return self.send(400, {"error":"Please type a number."})
+        a = db.execute("SELECT target,COALESCE(kind,'chunked'),COALESCE(decimals,0) FROM activities WHERE id=? AND active=1", (aid,)).fetchone()
         if not a: return self.send(404, {"error":"That activity isn't available."})
+        if raw != raw or abs(raw) > 1e7: return self.send(400, {"error":"Please type a number."})
+        amt = int(round(raw * 10 ** a[2]))
         if a[1] != "chunked": return self.send(400, {"error":"This one isn't added up in pieces. Please use its own button."})
         if amt < 1 or amt > 1000000: return self.send(400, {"error":"Please type a number bigger than 0."})
         tot = db.execute("SELECT COALESCE(SUM(amount),0) FROM progress WHERE user_id=? AND activity_id=?", (u[0],aid)).fetchone()[0]
@@ -381,7 +431,7 @@ class H(http.server.BaseHTTPRequestHandler):
         if room <= 0: return self.send(400, {"error":"You already finished this one. Amazing!"})
         amt = min(amt, room)
         db.execute("INSERT INTO progress(user_id,activity_id,amount,created) VALUES(?,?,?,?)", (u[0],aid,amt,time.time()))
-        self.send(200, {"added":amt, **me_payload(u)})
+        self.send(200, {"added":amt, "newBadges":sync_badges(u[0]), **me_payload(u)})
     def record_result(self, u, b):
         try: aid = int(b.get("activity_id"))
         except Exception: return self.send(400, {"error":"bad activity"})
@@ -411,7 +461,7 @@ class H(http.server.BaseHTTPRequestHandler):
             wt = round(wt, 1)
         first = not db.execute("SELECT 1 FROM results WHERE user_id=? AND activity_id=?", (u[0],aid)).fetchone()
         db.execute("INSERT INTO results(user_id,activity_id,seconds,weight,wunit,created) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,activity_id) DO UPDATE SET seconds=excluded.seconds,weight=excluded.weight,wunit=excluded.wunit", (u[0],aid,secs,wt,wu,time.time()))
-        self.send(200, {"first":first, **me_payload(u)})
+        self.send(200, {"first":first, "newBadges":sync_badges(u[0]), **me_payload(u)})
     def repeat_done(self, u, b):
         try: aid = int(b.get("activity_id"))
         except Exception: return self.send(400, {"error":"bad activity"})
@@ -423,25 +473,25 @@ class H(http.server.BaseHTTPRequestHandler):
         if last and now - last < 5: return self.send(429, {"error":"Got it! Please wait a few seconds before tapping again."})
         note = re.sub(r"<[^>]*>", "", str(b.get("note",""))); note = re.sub(r"\s+"," ",note).strip()[:100]
         db.execute("INSERT INTO repeats(user_id,activity_id,day,note,created) VALUES(?,?,?,?,?)", (u[0],aid,today().isoformat(),note,now))
-        self.send(200, {"count":n+1,"complete":n+1>=a[1], **me_payload(u)})
+        self.send(200, {"count":n+1,"complete":n+1>=a[1], "newBadges":sync_badges(u[0]), **me_payload(u)})
     def undo_repeat(self, u, b):
         try: aid = int(b.get("activity_id"))
         except Exception: return self.send(400, {"error":"bad activity"})
         r = db.execute("SELECT id FROM repeats WHERE user_id=? AND activity_id=? ORDER BY id DESC LIMIT 1", (u[0],aid)).fetchone()
         if not r: return self.send(400, {"error":"Nothing to undo."})
-        db.execute("DELETE FROM repeats WHERE id=?", (r[0],))
+        db.execute("DELETE FROM repeats WHERE id=?", (r[0],)); sync_badges(u[0])
         self.send(200, me_payload(u))
     def undo_result(self, u, b):
         try: aid = int(b.get("activity_id"))
         except Exception: return self.send(400, {"error":"bad activity"})
-        db.execute("DELETE FROM results WHERE user_id=? AND activity_id=?", (u[0],aid))
+        db.execute("DELETE FROM results WHERE user_id=? AND activity_id=?", (u[0],aid)); sync_badges(u[0])
         self.send(200, me_payload(u))
     def undo_progress(self, u, b):
         try: aid = int(b.get("activity_id"))
         except Exception: return self.send(400, {"error":"bad activity"})
         r = db.execute("SELECT id FROM progress WHERE user_id=? AND activity_id=? ORDER BY id DESC LIMIT 1", (u[0],aid)).fetchone()
         if not r: return self.send(400, {"error":"Nothing to undo."})
-        db.execute("DELETE FROM progress WHERE id=?", (r[0],))
+        db.execute("DELETE FROM progress WHERE id=?", (r[0],)); sync_badges(u[0])
         self.send(200, me_payload(u))
     def admin(self, p, b):
         if not ADMIN_PASSWORD: return self.send(403, {"error":"Admin is not set up."})
@@ -582,7 +632,7 @@ class H(http.server.BaseHTTPRequestHandler):
             if not r: return self.send(404, {"error":"No such member."})
             if str(b.get("confirm","")).strip().casefold() != r[0].casefold(): return self.send(400, {"error":"Type the member's name exactly to confirm."})
             db.execute("DELETE FROM reactions WHERE user_id=? OR comment_id IN (SELECT id FROM comments WHERE user_id=?)", (uid,uid))
-            for t in ("sessions","checkins","wins","progress","user_activities","user_picks","comments","results","repeats"):
+            for t in ("sessions","checkins","wins","badges","progress","user_activities","user_picks","comments","results","repeats"):
                 db.execute("DELETE FROM %s WHERE user_id=?" % t, (uid,))
             db.execute("DELETE FROM users WHERE id=?", (uid,))
             return self.send(200, {"deleted":True, **member_rows()})
@@ -596,12 +646,9 @@ class H(http.server.BaseHTTPRequestHandler):
         if b.get("done", True):
             note = str(b.get("note",""))[:200]
             db.execute("INSERT INTO checkins VALUES(?,?,?,?) ON CONFLICT(user_id,day) DO UPDATE SET note=excluded.note", (u[0], d.isoformat(), note, time.time()))
-            n = stats(u[0])["done"]
-            for m in MILESTONES:
-                if n >= m and not db.execute("SELECT 1 FROM wins WHERE user_id=? AND milestone=?", (u[0],m)).fetchone():
-                    db.execute("INSERT INTO wins VALUES(?,?,?)", (u[0], m, time.time())); new.append(m)
+            new = sync_badges(u[0])
         else:
-            db.execute("DELETE FROM checkins WHERE user_id=? AND day=?", (u[0], d.isoformat()))
+            db.execute("DELETE FROM checkins WHERE user_id=? AND day=?", (u[0], d.isoformat())); sync_badges(u[0])
         self.send(200, {"newBadges":new, **me_payload(u)})
 
 class S(socketserver.ThreadingMixIn, http.server.HTTPServer):
