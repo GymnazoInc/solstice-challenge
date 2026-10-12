@@ -120,6 +120,10 @@ BADGES = [
      "names":[["plank"],["wall sit"],["single leg balance"],["min hang"]]},
     {"key":"circle","label":"Full Circle","icon":"🌀","desc":"Finished Rope Flow, Mace 360/Plate Halo, Lunge Matrix and TrueStretch","kind":"names",
      "names":[["rope flow"],["mace","plate halo"],["lunge matrix"],["truestretch"]]},
+    {"key":"legs","label":"Leg Day Legend","icon":"🦵","desc":"Finished every leg activity","kind":"names",
+     "names":[["kettlebell squat"],["wall sit"],["single leg balance"],["jumps or calf raises","calf raise"],["box jump","box step"],["deep squat"],["lunge matrix"]]},
+    {"key":"arms","label":"Arms Race","icon":"🥊","desc":"Finished every arm activity","kind":"names",
+     "names":[["overhead slam"],["overhead press"],["min hang"],["medball throw"],["mace","plate halo"]]},
     {"key":"timed","label":"Time Tracker","icon":"⏱️","desc":"Finished your first timed activity","kind":"timed"},
 ]
 def is_timed(a):
