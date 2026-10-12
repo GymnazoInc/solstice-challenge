@@ -110,7 +110,23 @@ BADGES = [
     {"key":"practice","label":"Practice Badge","icon":"🌙","desc":"Finished every Practice activity","kind":"phase","phase":3},
     {"key":"selflove","label":"Self Love Badge","icon":"💖","desc":"Cold plunge, 10 hugs, TrueStretch and journaling all done","kind":"names",
      "names":[["ocean plunge","cold shower"],["hugs"],["truestretch"],["journal"]]},
+    {"key":"row","label":"Row, Row, Row Your Boat","icon":"🚣","desc":"Finished the 500m, 1,000m and 2,000m rows","kind":"names",
+     "names":[["500m row"],["1,000m row","1000m row"],["2,000m row","2000m row"]]},
+    {"key":"muscle","label":"Mighty Muscles","icon":"💪","desc":"Finished the Kettlebell Squat, ViPR Press and FitFighter Slam","kind":"names",
+     "names":[["kettlebell squat"],["overhead press"],["overhead slam"]]},
+    {"key":"miles","label":"Miles & Smiles","icon":"🥾","desc":"Finished the Gymnazo Loop, Gymnazo Mile, a hike and the Loaded Carry mile","kind":"names",
+     "names":[["gymnazo loop"],["gymnazo mile"],["hike"],["loaded carry"]]},
+    {"key":"rock","label":"Rock Solid","icon":"🪨","desc":"Finished the Plank, Wall Sit, Single Leg Balance and Hang","kind":"names",
+     "names":[["plank"],["wall sit"],["single leg balance"],["min hang"]]},
+    {"key":"circle","label":"Full Circle","icon":"🌀","desc":"Finished Rope Flow, Mace 360/Plate Halo, Lunge Matrix and TrueStretch","kind":"names",
+     "names":[["rope flow"],["mace","plate halo"],["lunge matrix"],["truestretch"]]},
+    {"key":"timed","label":"Time Tracker","icon":"⏱️","desc":"Finished your first timed activity","kind":"timed"},
 ]
+def is_timed(a):
+    """Timed = measured in minutes (unit 'min…', or '10min'/'(2m+)' in the name), or a one-time effort where a time was recorded."""
+    n = a["name"].casefold()
+    if str(a.get("unit","")).casefold().startswith("min") or re.search(r"\d+\s*min", n) or re.search(r"\(\d+m\+\)", n): return True
+    return a.get("kind") == "once" and bool((a.get("result") or {}).get("seconds"))
 BADGE = {b["key"]:b for b in BADGES}
 def badge_pub(b): return {"key":b["key"],"label":b["label"],"icon":b["icon"],"desc":b["desc"]}
 def badge_ok(b, uid, acts):
@@ -118,6 +134,7 @@ def badge_ok(b, uid, acts):
     if b["kind"] == "phase":
         L = [a for a in acts if a["phase"] == b["phase"]]
         return bool(L) and all(a["done"] for a in L)
+    if b["kind"] == "timed": return any(a["done"] and is_timed(a) for a in acts)
     if b["kind"] == "names":
         for alts in b["names"]:
             L = [a for a in acts if any(x in a["name"].casefold() for x in alts)]
