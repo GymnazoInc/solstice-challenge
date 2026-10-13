@@ -116,7 +116,7 @@ BADGES = [
      "names":[["kettlebell squat"],["overhead press"],["overhead slam"]]},
     {"key":"miles","label":"Miles & Smiles","icon":"🥾","desc":"Finished the Gymnazo Loop, Gymnazo Mile, a hike and the Loaded Carry mile","kind":"names",
      "names":[["gymnazo loop"],["gymnazo mile"],["hike"],["loaded carry"]]},
-    {"key":"rock","label":"Rock Solid","icon":"🪨","desc":"Finished the Plank, Wall Sit, Single Leg Balance and Hang","kind":"names",
+    {"key":"rock","label":"Unshakeable","icon":"🪨","desc":"Finished the Plank, Wall Sit, Single Leg Balance and Hang","kind":"names",
      "names":[["plank"],["wall sit"],["single leg balance"],["min hang"]]},
     {"key":"circle","label":"Full Circle","icon":"🌀","desc":"Finished Rope Flow, Mace 360/Plate Halo, Lunge Matrix and TrueStretch","kind":"names",
      "names":[["rope flow"],["mace","plate halo"],["lunge matrix"],["truestretch"]]},
