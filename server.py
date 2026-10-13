@@ -64,6 +64,7 @@ def migrate(c):
 migrate(BETA)
 def migrate2(c):
     c.execute("CREATE TABLE IF NOT EXISTS badges(user_id INTEGER, key TEXT, created REAL, PRIMARY KEY(user_id, key))")
+    c.execute("CREATE TABLE IF NOT EXISTS admin_audit(ts REAL, user_id INTEGER, action TEXT, detail TEXT)")
     if "decimals" not in [r[1] for r in c.execute("PRAGMA table_info(activities)")]: c.execute("ALTER TABLE activities ADD COLUMN decimals INTEGER DEFAULT 0")
     # carry over old first-check-in wins once
     if not c.execute("SELECT 1 FROM meta WHERE k='badges_v1'").fetchone():
@@ -76,7 +77,7 @@ def migrate2(c):
                 c.execute("UPDATE progress SET amount=? WHERE id=?", (max(1, round(amt * 100 / 5280)), pid))
         c.execute("UPDATE activities SET unit='miles',target=100,decimals=2 WHERE id=?", (aid,))
 migrate2(MAIN); migrate2(BETA)
-BETA_TABLES = ("badges","users","sessions","checkins","wins","progress","user_activities","user_picks","comments","reactions","results","repeats")
+BETA_TABLES = ("admin_audit","badges","users","sessions","checkins","wins","progress","user_activities","user_picks","comments","reactions","results","repeats")
 def beta_sync_activities():
     """Beta uses the same activity list as the real challenge (copied from the main DB, same ids)."""
     rows = MAIN.execute("SELECT id,name,target,unit,sort,active,phase,kind,record_type,repeat_count,decimals FROM activities").fetchall()
@@ -616,6 +617,7 @@ class H(http.server.BaseHTTPRequestHandler):
             beta_wipe(); return self.send(200, {"ok":1, "wiped":"beta"})
         if p == "/api/admin/beta/stats":
             return self.send(200, {"users":BETA.execute("SELECT COUNT(*) FROM users").fetchone()[0], "checkins":BETA.execute("SELECT COUNT(*) FROM checkins").fetchone()[0], "progress":BETA.execute("SELECT COUNT(*) FROM progress").fetchone()[0]})
+        if p.startswith("/api/admin/edit/"): return self.admin_edit(p[16:], b)
         if p == "/api/admin/members": return self.send(200, member_rows())
         if p == "/api/admin/members/detail":
             try: d = member_detail(int(b.get("id")))
@@ -657,11 +659,118 @@ class H(http.server.BaseHTTPRequestHandler):
             if not r: return self.send(404, {"error":"No such member."})
             if str(b.get("confirm","")).strip().casefold() != r[0].casefold(): return self.send(400, {"error":"Type the member's name exactly to confirm."})
             db.execute("DELETE FROM reactions WHERE user_id=? OR comment_id IN (SELECT id FROM comments WHERE user_id=?)", (uid,uid))
-            for t in ("sessions","checkins","wins","badges","progress","user_activities","user_picks","comments","results","repeats"):
+            db.execute("CREATE TABLE IF NOT EXISTS admin_audit(ts REAL, user_id INTEGER, action TEXT, detail TEXT)")
+            for t in ("admin_audit","sessions","checkins","wins","badges","progress","user_activities","user_picks","comments","results","repeats"):
                 db.execute("DELETE FROM %s WHERE user_id=?" % t, (uid,))
             db.execute("DELETE FROM users WHERE id=?", (uid,))
             return self.send(200, {"deleted":True, **member_rows()})
         self.send(404, {"error":"nf"})
+    def admin_edit(self, op, b):
+        """Studio edits of one member's inputs. Every change re-checks badges and is written to the audit log."""
+        try: uid = int(b.get("id"))
+        except Exception: return self.send(400, {"error":"bad request"})
+        if not db.execute("SELECT 1 FROM users WHERE id=?", (uid,)).fetchone(): return self.send(404, {"error":"No such member."})
+        db.execute("CREATE TABLE IF NOT EXISTS admin_audit(ts REAL, user_id INTEGER, action TEXT, detail TEXT)")
+        now = time.time()
+        def act():
+            try: aid = int(b.get("activity_id"))
+            except Exception: return None
+            return db.execute("SELECT id,name,target,COALESCE(kind,'chunked'),COALESCE(decimals,0),COALESCE(repeat_count,3),COALESCE(record_type,'none') FROM activities WHERE id=?", (aid,)).fetchone()
+        def num(v):
+            try:
+                x = float(v); return x if x == x and abs(x) < 1e7 else None
+            except Exception: return None
+        def day(v):
+            try: return date.fromisoformat(str(v)).isoformat()
+            except Exception: return None
+        a = act(); detail = ""
+        if op == "state": return self.send(200, self._edit_state(uid))
+        if op in ("progress/set", "progress/add"):
+            if not a or a[3] != "chunked": return self.send(400, {"error":"That activity isn't added up in amounts."})
+            x = num(b.get("amount"))
+            if x is None or x < 0: return self.send(400, {"error":"Please type a number (0 or more)."})
+            amt = min(int(round(x * 10 ** a[4])), a[2] if op == "progress/set" else 10**9)
+            if op == "progress/set":
+                db.execute("DELETE FROM progress WHERE user_id=? AND activity_id=?", (uid, a[0]))
+                if amt > 0: db.execute("INSERT INTO progress(user_id,activity_id,amount,created) VALUES(?,?,?,?)", (uid, a[0], amt, now))
+            else:
+                if amt < 1: return self.send(400, {"error":"Please type a number bigger than 0."})
+                db.execute("INSERT INTO progress(user_id,activity_id,amount,created) VALUES(?,?,?,?)", (uid, a[0], amt, now))
+            detail = "%s %s %s" % (op, a[1], x)
+        elif op in ("progress/update", "progress/delete"):
+            try: eid = int(b.get("entry_id"))
+            except Exception: return self.send(400, {"error":"bad request"})
+            r = db.execute("SELECT p.activity_id,a.decimals FROM progress p JOIN activities a ON a.id=p.activity_id WHERE p.id=? AND p.user_id=?", (eid, uid)).fetchone()
+            if not r: return self.send(404, {"error":"That entry is gone."})
+            if op == "progress/delete": db.execute("DELETE FROM progress WHERE id=?", (eid,))
+            else:
+                x = num(b.get("amount"))
+                if x is None or x <= 0: return self.send(400, {"error":"Please type a number bigger than 0."})
+                db.execute("UPDATE progress SET amount=? WHERE id=?", (int(round(x * 10 ** (r[1] or 0))), eid))
+            detail = "%s entry %d" % (op, eid)
+        elif op in ("result/set", "result/delete"):
+            if not a or a[3] != "once": return self.send(400, {"error":"That activity has no recorded result."})
+            if op == "result/delete": db.execute("DELETE FROM results WHERE user_id=? AND activity_id=?", (uid, a[0]))
+            else:
+                m, sc, wt = num(b.get("minutes") or 0), num(b.get("seconds") or 0), b.get("weight")
+                if m is None or sc is None or m < 0 or sc < 0 or sc > 59: return self.send(400, {"error":"Minutes and seconds (0-59) please."})
+                secs = int(m) * 60 + int(sc) or None
+                wt = num(wt) if wt not in (None, "") else None
+                wu = str(b.get("unit") or "lb").lower()
+                if wu not in ("lb","kg"): wu = "lb"
+                db.execute("INSERT INTO results(user_id,activity_id,seconds,weight,wunit,created) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,activity_id) DO UPDATE SET seconds=excluded.seconds,weight=excluded.weight,wunit=excluded.wunit", (uid, a[0], secs, round(wt,1) if wt else None, wu if wt else None, now))
+            detail = "%s %s" % (op, a[1])
+        elif op == "repeat/add":
+            if not a or a[3] != "repeat": return self.send(400, {"error":"That activity isn't a check-off one."})
+            if db.execute("SELECT COUNT(*) FROM repeats WHERE user_id=? AND activity_id=?", (uid, a[0])).fetchone()[0] >= a[5]: return self.send(400, {"error":"All %d are already done." % a[5]})
+            d = day(b.get("day")) or today().isoformat()
+            db.execute("INSERT INTO repeats(user_id,activity_id,day,note,created) VALUES(?,?,?,?,?)", (uid, a[0], d, "edited by studio", now)); detail = "repeat/add %s %s" % (a[1], d)
+        elif op == "repeat/delete":
+            try: eid = int(b.get("entry_id"))
+            except Exception: return self.send(400, {"error":"bad request"})
+            db.execute("DELETE FROM repeats WHERE id=? AND user_id=?", (eid, uid)); detail = "repeat/delete %d" % eid
+        elif op == "complete":
+            if not a: return self.send(404, {"error":"No such activity."})
+            done = bool(b.get("done"))
+            if a[3] == "chunked":
+                db.execute("DELETE FROM progress WHERE user_id=? AND activity_id=?", (uid, a[0]))
+                if done: db.execute("INSERT INTO progress(user_id,activity_id,amount,created) VALUES(?,?,?,?)", (uid, a[0], a[2], now))
+            elif a[3] == "once":
+                if done: db.execute("INSERT OR IGNORE INTO results(user_id,activity_id,seconds,weight,wunit,created) VALUES(?,?,NULL,NULL,NULL,?)", (uid, a[0], now))
+                else: db.execute("DELETE FROM results WHERE user_id=? AND activity_id=?", (uid, a[0]))
+            else:
+                if done:
+                    n = db.execute("SELECT COUNT(*) FROM repeats WHERE user_id=? AND activity_id=?", (uid, a[0])).fetchone()[0]
+                    for _ in range(max(0, a[5] - n)): db.execute("INSERT INTO repeats(user_id,activity_id,day,note,created) VALUES(?,?,?,?,?)", (uid, a[0], today().isoformat(), "edited by studio", now))
+                else: db.execute("DELETE FROM repeats WHERE user_id=? AND activity_id=?", (uid, a[0]))
+            if done: db.execute("INSERT OR IGNORE INTO user_activities VALUES(?,?,?)", (uid, a[0], now))
+            detail = "%s %s" % ("complete" if done else "incomplete", a[1])
+        elif op in ("checkin/add", "checkin/delete"):
+            d = day(b.get("day"))
+            if not d: return self.send(400, {"error":"Please pick a date."})
+            if op == "checkin/add": db.execute("INSERT OR IGNORE INTO checkins VALUES(?,?,?,?)", (uid, d, "edited by studio", now))
+            else: db.execute("DELETE FROM checkins WHERE user_id=? AND day=?", (uid, d))
+            detail = "%s %s" % (op, d)
+        else: return self.send(404, {"error":"nf"})
+        sync_badges(uid)
+        db.execute("INSERT INTO admin_audit VALUES(?,?,?,?)", (now, uid, "edited by studio", detail))
+        self.send(200, self._edit_state(uid))
+    def _edit_state(self, uid):
+        nm = db.execute("SELECT name FROM users WHERE id=?", (uid,)).fetchone()[0]
+        acts = activities_for(uid)
+        ent = {}
+        for i, aid, amt, c in db.execute("SELECT id,activity_id,amount,created FROM progress WHERE user_id=? ORDER BY id", (uid,)): ent.setdefault(aid, []).append({"id":i,"amount":amt,"date":fdate(c)})
+        rep = {}
+        for i, aid, d, n in db.execute("SELECT id,activity_id,day,note FROM repeats WHERE user_id=? ORDER BY id", (uid,)): rep.setdefault(aid, []).append({"id":i,"day":d,"note":n or ""})
+        for a in acts:
+            if a["kind"] == "chunked": a["entries"] = ent.get(a["id"], [])
+            if a["kind"] == "repeat": a["repeats"] = rep.get(a["id"], [])
+        done = sum(1 for a in acts if a["done"])
+        db.execute("CREATE TABLE IF NOT EXISTS admin_audit(ts REAL, user_id INTEGER, action TEXT, detail TEXT)")
+        return {"id":uid, "name":nm, "activities":acts, "completed":done, "pct":round(min(done,30)/30*100), "raffle":2 if done>=20 else 1 if done>=10 else 0,
+                "checkins":[r[0] for r in db.execute("SELECT day FROM checkins WHERE user_id=? ORDER BY day", (uid,))],
+                "badges":[BADGE[r[0]]["label"] for r in db.execute("SELECT key FROM badges WHERE user_id=? ORDER BY created", (uid,)) if r[0] in BADGE],
+                "audit":[{"at":fdate(r[0]),"detail":r[1]} for r in db.execute("SELECT ts,detail FROM admin_audit WHERE user_id=? ORDER BY ts DESC LIMIT 15", (uid,))]}
     def checkin(self, u, b):
         try: d = date.fromisoformat(str(b.get("date")))
         except Exception: return self.send(400, {"error":"bad date"})
