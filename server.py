@@ -122,7 +122,7 @@ BADGES = [
      "names":[["rope flow"],["mace","plate halo"],["lunge matrix"],["truestretch"]]},
     {"key":"legs","label":"Leg Day Legend","icon":"🦵","desc":"Finished every leg activity","kind":"names",
      "names":[["kettlebell squat"],["wall sit"],["single leg balance"],["jumps or calf raises","calf raise"],["box jump","box step"],["deep squat"],["lunge matrix"]]},
-    {"key":"arms","label":"Arms Race","icon":"🥊","desc":"Finished every arm activity","kind":"names",
+    {"key":"arms","label":"Strong Arms","icon":"🥊","desc":"Finished every arm activity","kind":"names",
      "names":[["overhead slam"],["overhead press"],["min hang"],["medball throw"],["mace","plate halo"]]},
     {"key":"count10","label":"Snowball Rolling","icon":"⛄","desc":"Finished 10 activities","prize":"You earned a raffle entry!","kind":"count","n":10},
     {"key":"count20","label":"Shining Star","icon":"🌟","desc":"Finished 20 activities","prize":"You earned a second raffle entry!","kind":"count","n":20},
