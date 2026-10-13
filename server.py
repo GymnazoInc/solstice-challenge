@@ -285,7 +285,7 @@ class H(http.server.BaseHTTPRequestHandler):
             cnt = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
             return self.send(200, {"members":cnt, "wins":[{"name":r[0],"key":r[1],"label":BADGE[r[1]]["label"],"icon":BADGE[r[1]]["icon"],"at":r[2]} for r in rows]})
         if p == "/api/leaderboard":
-            # Tracking Board: every member, alphabetical, one snowflake per 5 completed activities
+            # Momentum Board: every member, alphabetical, one snowflake per 5 completed activities
             u = user_from(self); rows = []
             for uid, name in db.execute("SELECT id,name FROM users").fetchall():
                 n = sum(1 for a in activities_for(uid) if a["done"])
