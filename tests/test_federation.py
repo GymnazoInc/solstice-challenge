@@ -239,7 +239,24 @@ try:
     pe = [p for p in d["progress"] if p["activity"] == "Loaded Carry Test"][0]["entries"]
     check("admin detail shows extras", pe[0]["weight_lbs"] == 70 and pe[0]["equipment"] == "two kettlebells" and [r for r in d["results"] if r["activity"] == "500m Row Machine"][0]["damper"] == 6)
     csvt = S("/api/admin/members/inputs-csv", {}, admin="sa")[2].decode()
-    check("CSV has extras columns + values", csvt.splitlines()[0].endswith("weight_lbs,damper,equipment") and ",70.0,,two kettlebells" in csvt and ",,6," in csvt and ",12.0,," in csvt, csvt[:300])
+    check("CSV has extras columns + values", csvt.splitlines()[0].endswith("weight_lbs,damper,equipment,box_height_in") and ",70.0,,two kettlebells," in csvt and ",,6,," in csvt and ",12.0,,," in csvt, csvt[:300])
+    # ---- box height (inches) on Box Jump/Step
+    S("/api/admin/save", {"name": "1,000ft Box Jump/Step", "target": 1000, "unit": "ft", "phase": 1}, admin="sa")
+    S("/api/admin/save", {"name": "50 BOX STEP Ups", "kind": "once", "record": "time", "unit": "effort", "phase": 1}, admin="sa")
+    ex = {a["name"]: a.get("extras") for a in me()["activities"]}
+    check("box height matched (box jump / box step, any case)", ex["1,000ft Box Jump/Step"] == ["box_height"] and ex["50 BOX STEP Ups"] == ["box_height"] and "box_height" not in ex["1,000 Med Ball Throw X"], ex)
+    bj = aid("1,000ft Box Jump/Step")
+    s, j, _ = S("/api/progress", {"activity_id": bj, "amount": 10, "box_height_in": 99}, cookie=ck); check("box height 99 rejected", s == 400)
+    s, j, _ = S("/api/progress", {"activity_id": bj, "amount": 10, "box_height_in": "20", "weight_lbs": 30}, cookie=ck)
+    lg = [a for a in j["activities"] if a["id"] == bj][0]["log"]
+    check("box height stored on progress (weight ignored)", s == 200 and lg[0]["box_height_in"] == 20 and lg[0]["weight_lbs"] is None, lg)
+    s, j, _ = S("/api/progress", {"activity_id": bj, "amount": 5}, cookie=ck); check("box height optional", s == 200)
+    bs = aid("50 BOX STEP Ups"); s, j, _ = S("/api/result", {"activity_id": bs, "minutes": 4, "box_height_in": 12.5}, cookie=ck)
+    check("box height stored on results", [a for a in j["activities"] if a["id"] == bs][0]["result"]["box_height_in"] == 12.5)
+    d = S("/api/admin/members/detail", {"id": [m["id"] for m in S("/api/admin/members", {}, admin="sa")[1]["members"] if m["name"] == me()["name"]][0]}, admin="sa")[1]
+    check("admin detail shows box height", [p for p in d["progress"] if p["activity"] == "1,000ft Box Jump/Step"][0]["entries"][0]["box_height_in"] == 20 and [r for r in d["results"] if r["activity"] == "50 BOX STEP Ups"][0]["box_height_in"] == 12.5)
+    csvt = S("/api/admin/members/inputs-csv", {}, admin="sa")[2].decode()
+    check("CSV has box_height_in column + values", csvt.splitlines()[0].endswith("equipment,box_height_in") and "1,000ft Box Jump/Step" in csvt and ",,,,20.0" in csvt and ",,,,12.5" in csvt, csvt[:300])
     # migration keeps old data and adds columns (main + beta DB)
     od = os.path.join(tmp, "old"); os.makedirs(od)
     for f in ("old.db", "solstice-beta.db"):
@@ -249,7 +266,7 @@ try:
     pm = subprocess.Popen([sys.executable, os.path.join(SOL, "server.py")], env=dict(base, PORT="18109", DB_PATH=os.path.join(od, "old.db"))); time.sleep(1.3); pm.terminate(); pm.wait()
     for f in ("old.db", "solstice-beta.db"):
         cols = {r[1] for r in q(os.path.join(od, f), "pragma table_info(progress)")} & {r[1] for r in q(os.path.join(od, f), "pragma table_info(results)")}
-        check("migration on %s adds columns and keeps rows" % f, {"weight_lbs", "damper", "equipment"} <= cols and q(os.path.join(od, f), "select amount from progress") == [(42,)] and q(os.path.join(od, f), "select seconds,weight from results") == [(60, 30.0)])
+        check("migration on %s adds columns and keeps rows" % f, {"weight_lbs", "damper", "equipment", "box_height_in"} <= cols and q(os.path.join(od, f), "select amount from progress") == [(42,)] and q(os.path.join(od, f), "select seconds,weight from results") == [(60, 30.0)])
 finally:
     for p in procs.values(): p.terminate()
 print(f"\n{P} passed, {F} failed"); sys.exit(1 if F else 0)
