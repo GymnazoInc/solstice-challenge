@@ -170,6 +170,23 @@ try:
     check("non-timed activity is not counted as timed", tt()["got"] and [b for b in me()["badgeList"] if b["key"] == "count10"][0]["hint"] == "4 of 10 activities done")
     sl = [b for b in me()["badgeList"] if b["key"] == "selflove"][0]
     check("Self Love desc mentions Supine Get-ups", "Supine Get-ups" in sl["desc"] and not sl["got"], sl)
+    # ---- Strong Arms: medicine ball throw matches MedBall / Med Ball / Medicine Ball (any case)
+    for nm in ("100 FitFighter Overhead Slam", "100 ViPR Curl Overhead Press", "1,000 MACE 360/Plate Halo"):
+        S("/api/admin/save", {"name": nm, "target": 1, "unit": "reps", "phase": 1}, admin="sa")
+        S("/api/progress", {"activity_id": aid(nm), "amount": 1}, cookie=ck)
+    S("/api/admin/save", {"name": "1,000 Medicine Ball Throw", "target": 1, "unit": "reps", "phase": 2}, admin="sa")
+    def arms(): return [b for b in me()["badgeList"] if b["key"] == "arms"][0]["got"]
+    check("Strong Arms locked until the ball throw is done", not arms())
+    mb = aid("1,000 Medicine Ball Throw"); S("/api/progress", {"activity_id": mb, "amount": 1}, cookie=ck)
+    check("Strong Arms earned with 'Medicine Ball Throw'", arms())
+    for nm in ("1,000 Med Ball Throw", "1,000 MEDBALL THROW", "1,000 med ball throw"):
+        S("/api/admin/save", {"id": mb, "name": nm, "target": 1, "unit": "reps", "phase": 2}, admin="sa")
+        S("/api/progress/undo", {"activity_id": mb}, cookie=ck); off = arms()
+        S("/api/progress", {"activity_id": mb, "amount": 1}, cookie=ck)
+        check("Strong Arms re-earned when named %r" % nm, not off and arms())
+    S("/api/admin/save", {"id": mb, "name": "1,000 Ball Toss", "target": 1, "unit": "reps", "phase": 2}, admin="sa")
+    S("/api/progress/undo", {"activity_id": mb}, cookie=ck); S("/api/progress", {"activity_id": mb, "amount": 1}, cookie=ck)
+    check("unrelated name does not satisfy Strong Arms", not arms())
 finally:
     for p in procs.values(): p.terminate()
 print(f"\n{P} passed, {F} failed"); sys.exit(1 if F else 0)

@@ -124,7 +124,7 @@ BADGES = [
     {"key":"legs","label":"Leg Day Legend","icon":"🦵","desc":"Finished every leg activity","kind":"names",
      "names":[["kettlebell squat"],["wall sit"],["single leg balance"],["jumps or calf raises","calf raise"],["box jump","box step"],["deep squat"],["lunge matrix"]]},
     {"key":"arms","label":"Strong Arms","icon":"🥊","desc":"Finished every arm activity","kind":"names",
-     "names":[["overhead slam"],["overhead press"],["min hang"],["medball throw"],["mace","plate halo"]]},
+     "names":[["overhead slam"],["overhead press"],["min hang"],["medball throw","med ball throw","medicine ball throw"],["mace","plate halo"]]},
     {"key":"count10","label":"Snowball Rolling","icon":"⛄","desc":"Finished 10 activities","prize":"You earned a raffle entry!","kind":"count","n":10},
     {"key":"count20","label":"Shining Star","icon":"🌟","desc":"Finished 20 activities","prize":"You earned a second raffle entry!","kind":"count","n":20},
     {"key":"count30","label":"Solstice Champion","icon":"🏆","desc":"Finished all 30 activities","prize":"You earned a 1-month membership upgrade and a free shirt!","kind":"count","n":30},
