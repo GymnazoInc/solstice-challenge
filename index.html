@@ -403,6 +403,57 @@ const ORN={
   <g ${P(id)} stroke-width="1">${fl}</g><path d="M51 43.5c3-1.5 6-.5 9-2s6-1.5 9 0" ${P(id)} stroke-width="1"/>
   <g fill="url(#${id}g)"><path d="M60 33.5l1.2 2.5 2.7.4-2 1.9.5 2.7-2.4-1.3-2.4 1.3.5-2.7-2-1.9 2.7-.4z"/></g>`},
 };
+// ---- Premium icons for the remaining badges (no flame). sm = small render (<=60px): fine detail dropped.
+const f2=n=>n.toFixed(2);
+function starP(cx,cy,R,r){let d='';for(let i=0;i<10;i++){const a=(-90+i*36)*Math.PI/180,q=i%2?r:R;d+=(i?'L':'M')+f2(cx+q*Math.cos(a))+' '+f2(cy+q*Math.sin(a))}return d+'z'}
+function sparkP(cx,cy,r){return `M${cx} ${cy-r}Q${cx} ${cy} ${cx+r} ${cy}Q${cx} ${cy} ${cx} ${cy+r}Q${cx} ${cy} ${cx-r} ${cy}Q${cx} ${cy} ${cx} ${cy-r}z`}
+function flakeP(cx,cy,r,br){let d='';for(let i=0;i<6;i++){const a=(i*60-90)*Math.PI/180,c=Math.cos(a),s=Math.sin(a);d+=`M${f2(cx)} ${f2(cy)}L${f2(cx+r*c)} ${f2(cy+r*s)}`;
+ if(br)[.45,.72].forEach((t,j)=>{const bx=cx+r*t*c,by=cy+r*t*s,L=r*(j?.2:.3);[-1,1].forEach(k=>{const b=a+k*Math.PI/3.2;d+=`M${f2(bx)} ${f2(by)}L${f2(bx+L*Math.cos(b))} ${f2(by+L*Math.sin(b))}`})})}return d}
+function laurelG(id,r,from,to,n,w){let o='';[1,-1].forEach(sx=>{for(let k=0;k<n;k++){const d=from+(to-from)*k/(n-1),a=d*Math.PI/180,x=60+sx*r*Math.cos(a),y=60+r*Math.sin(a);o+=`<ellipse cx="${f2(x)}" cy="${f2(y)}" rx="${w*.42}" ry="${w}" transform="rotate(${f2(sx*(d-180))} ${f2(x)} ${f2(y)})"/>`}});return `<g ${P(id)} stroke-width=".9">${o}</g>`}
+function dotRing(id,r,n,rad){let o='';for(let i=0;i<n;i++){const a=i*2*Math.PI/n;o+=`<circle cx="${f2(60+r*Math.cos(a))}" cy="${f2(60+r*Math.sin(a))}" r="${rad}"/>`}return `<g fill="url(#${id}g)">${o}</g>`}
+function halfRays(id,cy,r1,r2,n,w){let d='';for(let i=0;i<n;i++){const a=(-180+(i+.5)*180/n)*Math.PI/180,L=i%2?r2-2:r2;d+=`M${f2(60+r1*Math.cos(a))} ${f2(cy+r1*Math.sin(a))}L${f2(60+L*Math.cos(a))} ${f2(cy+L*Math.sin(a))}`}return `<path d="${d}" ${P(id)} stroke-width="${w}"/>`}
+const dk=got=>got?'#0b1430':'#1c2742';
+Object.assign(ORN,{
+ first(id,got,sz){const sm=sz&&sz<=60;return `${sm?'':dotRing(id,25,36,.45)}<path d="${flakeP(60,60,22,!sm)}" ${P(id)} stroke-width="${sm?2:1.3}"/>
+  <path d="M60 52.5l6.5 3.75v7.5L60 67.5l-6.5-3.75v-7.5z" fill="${dk(got)}" ${P(id)} stroke-width="1.1"/>${sm?'':`<path d="M60 56l3 1.75v3.5L60 63l-3-1.75v-3.5z" ${P(id)} stroke-width=".7"/><g fill="url(#${id}g)"><path d="${sparkP(80,40,2.4)}"/><path d="${sparkP(40,80,1.8)}"/></g>`}`},
+ capacity(id,got,sz){const sm=sz&&sz<=60;return `${halfRays(id,62,14,25,13,.8)}${sm?'':laurelG(id,24,120,175,4,2.8)}
+  <g ${P(id)} stroke-width="1.4"><path d="M38 62h44M38 60v4M82 60v4"/><rect x="42" y="53" width="4" height="18" rx="1"/><rect x="47" y="55.5" width="3.4" height="13" rx="1"/><rect x="74" y="53" width="4" height="18" rx="1"/><rect x="69.6" y="55.5" width="3.4" height="13" rx="1"/></g>
+  ${sm?'':`<path d="M54 60.5v3M56.5 60.5v3M59 60.5v3M61.5 60.5v3M64 60.5v3M66.5 60.5v3" ${P(id)} stroke-width=".6"/><path d="${starP(60,40,2.6,1.1)}" fill="url(#${id}g)"/>`}`},
+ acquire(id,got,sz){const sm=sz&&sz<=60;return `<path d="M35 78L52 47l7 10 6-9 20 30z" fill="${dk(got)}" ${P(id)} stroke-width="1.5"/>
+  <path d="M47 56l5-9 3.5 5-2.5 3.5-2-2zM62 52.5l3-4.5 4 6-3 1-2-2z" fill="url(#${id}g)" opacity=".9"/>${sm?'':`<path d="M52 47l-2 31M65 48l3 30M52 47l8 31" ${P(id)} stroke-width=".6" opacity=".7"/><path d="M38 72c8-2 14 1 22-1s14 1 22-1" ${P(id)} stroke-width=".7" opacity=".7"/>`}
+  <path d="M65 48V37l7 2.5-7 2.5" ${P(id)} stroke-width="1.2"/>${sm?'':`<g fill="url(#${id}g)"><path d="${sparkP(42,42,2)}"/><circle cx="80" cy="44" r=".8"/><circle cx="49" cy="36" r=".6"/></g>${dotRing(id,25,30,.4)}`}`},
+ practice(id,got,sz){const sm=sz&&sz<=60;const S=[[66,44],[74,50],[71,59],[79,66],[68,72]];return `${sm?'':`<circle cx="60" cy="60" r="24" ${P(id)} stroke-width=".7" stroke-dasharray="1 2.4"/>`}
+  <path d="M58 37a23 23 0 1 0 4 45.5A19 19 0 0 1 58 37z" fill="${dk(got)}" ${P(id)} stroke-width="1.6"/>${sm?'':`<path d="M54 42a19 19 0 0 0 2 37" ${P(id)} stroke-width=".7" opacity=".7"/>`}
+  <path d="M${S.map(p=>p.join(' ')).join('L')}" ${P(id)} stroke-width=".8" opacity=".85"/><g fill="url(#${id}g)">${S.map((p,i)=>`<path d="${starP(p[0],p[1],i==2?2.6:1.8,i==2?1.1:.75)}"/>`).join('')}</g>`},
+ selflove(id,got,sz){const sm=sz&&sz<=60;const H=(s)=>`M60 ${60+19*s}C${60-26*s} ${60+4*s} ${60-18*s} ${60-17*s} 60 ${60-8*s}C${60+18*s} ${60-17*s} ${60+26*s} ${60+4*s} 60 ${60+19*s}z`;
+  return `${halfRays(id,58,24,27,15,.7).replace('<path','<path opacity=".8"')}<path d="${H(1)}" fill="${dk(got)}" ${P(id)} stroke-width="1.6"/>${sm?'':`<path d="${H(.72)}" ${P(id)} stroke-width=".8" transform="translate(0 1.5)"/><path d="${flakeP(60,59,5.5,false)}" ${P(id)} stroke-width=".9"/>`}
+  ${sm?`<path d="${H(.55)}" fill="url(#${id}g)" transform="translate(0 2)"/>`:`<g fill="url(#${id}g)"><path d="${sparkP(39,42,2.2)}"/><path d="${sparkP(82,44,1.8)}"/><circle cx="78" cy="78" r=".8"/></g>`}`},
+ row(id,got,sz){const sm=sz&&sz<=60;return `<defs><clipPath id="${id}rc"><circle cx="60" cy="60" r="25"/></clipPath></defs><g clip-path="url(#${id}rc)">
+  ${halfRays(id,60,9,15,9,.8)}<path d="M51 60a9 9 0 0 1 18 0z" fill="${dk(got)}" ${P(id)} stroke-width="1.3"/>
+  <path d="M30 66q30 7 60 0q-30 3-60 0z" fill="${dk(got)}" ${P(id)} stroke-width="1.5"/><path d="M40 57l38 15M80 57l-38 15" ${P(id)} stroke-width="1.3"/><path d="M76.5 70l4.5 3.5-1 1.5-5-2zM43.5 70l-4.5 3.5 1 1.5 5-2z" fill="url(#${id}g)"/>
+  <path d="M30 76c5-2.5 10-2.5 15 0s10 2.5 15 0 10-2.5 15 0 10 2.5 15 0" ${P(id)} stroke-width="1.1"/>${sm?'':`<path d="M33 82c5-2 10-2 15 0s10 2 15 0 10-2 15 0 10 2 15 0" ${P(id)} stroke-width=".7" opacity=".7"/><g fill="url(#${id}g)"><path d="${sparkP(41,43,1.8)}"/><circle cx="79" cy="45" r=".7"/></g>`}</g>
+  <circle cx="60" cy="60" r="25" ${P(id)} stroke-width="1.1"/>`},
+ timed(id,got,sz){const sm=sz&&sz<=60;let t='';for(let i=0;i<60;i++){if(sm&&i%5)continue;const a=i*6*Math.PI/180,r2=i%5?17.5:16;t+=`M${f2(60+19*Math.sin(a))} ${f2(63-19*Math.cos(a))}L${f2(60+r2*Math.sin(a))} ${f2(63-r2*Math.cos(a))}`}
+  return `<circle cx="60" cy="63" r="21.5" fill="${dk(got)}" ${P(id)} stroke-width="1.6"/><circle cx="60" cy="63" r="19.5" ${P(id)} stroke-width=".6"/><path d="${t}" ${P(id)} stroke-width="${sm?1.1:.6}"/>
+  <path d="M56.5 37.5h7v3.5h-7zM60 41v.5M73.5 46l3-3 2 2-3 3M46.5 46l-3-3-2 2 3 3" ${P(id)} stroke-width="1.3"/>
+  ${sm?'':`<circle cx="60" cy="71" r="4.5" ${P(id)} stroke-width=".6"/><path d="M60 71l2.5-2" ${P(id)} stroke-width=".6"/>`}<path d="M60 63l0-12.5M60 63l7.5 4" ${P(id)} stroke-width="1.5"/><circle cx="60" cy="63" r="1.6" fill="url(#${id}g)"/>`},
+ muscle(id,got,sz){const sm=sz&&sz<=60;return `${halfRays(id,58,20,26,15,.8)}<path d="M52 53c-3-3-3-14 8-14s11 11 8 14" ${P(id)} stroke-width="1.6"/><path d="M55 51.5c-1-2-.5-8 5-8s6 6 5 8" ${P(id)} stroke-width="1"/>
+  <path d="M51.5 53h17c5 3 7.5 8 7.5 13 0 5-2 9-5 12H49c-3-3-5-7-5-12 0-5 2.5-10 7.5-13z" fill="${dk(got)}" ${P(id)} stroke-width="1.6"/>
+  ${sm?'':`<path d="M44 66l16-13 16 13-16 12zM60 53v25M44 66h32M52 59.5l16 13M68 59.5l-16 13" ${P(id)} stroke-width=".6" opacity=".8"/>`}<path d="M60 60l6 6-6 6-6-6z" fill="url(#${id}g)" opacity=".9"/>${sm?'':laurelG(id,25,125,165,3,2.6)}`},
+ arms(id,got,sz){const sm=sz&&sz<=60;return `${halfRays(id,66,16,25,13,.7)}<g ${P(id)} stroke-width="1.4"><path d="M37 42h46"/><rect x="38.5" y="36" width="3.6" height="12" rx="1"/><rect x="43" y="38" width="3" height="8" rx="1"/><rect x="77.9" y="36" width="3.6" height="12" rx="1"/><rect x="74" y="38" width="3" height="8" rx="1"/></g>
+  <circle cx="60" cy="51" r="3.2" ${P(id)} stroke-width="1.4"/><path d="M60 55l-6 9 6 3 6-3zM54 64l-2 13M66 64l2 13M55 56.5l-4-14.5M65 56.5l4-14.5" ${P(id)} stroke-width="1.4"/>
+  ${sm?'':`<path d="M57 59.5l6 0M58 62l4 0" ${P(id)} stroke-width=".6" opacity=".8"/><path d="M47 80h10M63 80h10M49 83h22" ${P(id)} stroke-width=".7" opacity=".7"/><g fill="url(#${id}g)"><path d="${sparkP(80,58,1.8)}"/><path d="${sparkP(40,58,1.8)}"/></g>`}`},
+ rock(id,got,sz){const sm=sz&&sz<=60;return `${sm?'':`<circle cx="60" cy="60" r="24.5" ${P(id)} stroke-width=".6" stroke-dasharray="1 2.2"/>`}${sm?'':`<path d="${flakeP(60,60,24,false)}" ${P(id)} stroke-width=".4" opacity=".45"/>`}
+  <circle cx="60" cy="40.5" r="3.2" fill="${dk(got)}" ${P(id)} stroke-width="1.5"/><path d="M60 43.7V80M51 49.5h18M40 66c1.5 9 9.5 14 20 14s18.5-5 20-14" ${P(id)} stroke-width="1.7"/>
+  <path d="M40 66l-3 3.5M40 66l4.2 1.4M80 66l3 3.5M80 66l-4.2 1.4" ${P(id)} stroke-width="1.5"/><path d="M57.5 48.5l2.5-1.7 2.5 1.7v2l-2.5 1.7-2.5-1.7z" fill="url(#${id}g)"/>
+  ${sm?'':`<path d="M60 52c6 1 9 4 6 7s-12 3-12 7 8 5 12 5" ${P(id)} stroke-width=".9" stroke-dasharray="2 1.4"/><g fill="url(#${id}g)"><path d="${sparkP(42,44,2)}"/><path d="${sparkP(79,44,2)}"/></g>`}`},
+});
+// milestone centers: number inside a richer engraved field
+function msIcon(id,key,got,sz){const sm=sz&&sz<=60,n=key.slice(5);
+ return `${sm?'':`<circle cx="60" cy="60" r="35.5" ${P(id)} stroke-width=".6" stroke-dasharray="1 2"/>`}${sm?'':rayRing(id,40,29,33,.5).replace('<g ','<g opacity=".7" ')}
+ <circle cx="60" cy="60" r="27" fill="${dk(got)}" ${P(id)} stroke-width="1.2"/>${sm?'':`<path d="${flakeP(60,60,26,false)}" ${P(id)} stroke-width=".35" opacity=".35"/>`}
+ <text x="60" y="68.5" text-anchor="middle" font-family="Fraunces,Georgia,serif" font-weight="700" font-size="${sm?30:26}" fill="url(#${id}g)">${n}</text>
+ <path d="M47 76.5h26v.01" ${P(id)} stroke-width=".9"/>${sm?'':`<g fill="url(#${id}g)"><path d="${starP(60,40,3,1.25)}"/><path d="${starP(51,42.5,1.6,.65)}"/><path d="${starP(69,42.5,1.6,.65)}"/><path d="${sparkP(44,61,1.6)}"/><path d="${sparkP(76,61,1.6)}"/></g>`}`}
 const MT={count10:['#e9eef6','#aeb9cb','#7d8aa2'],count20:['#fbe7b0','#e3b04b','#a8761f'],count30:['#fff6d6','#f2cf7e','#c98f1c']};
 let MID=0;
 function medal(key,got,size){const id='m'+(MID++),tier=MT[key],ms=/^count/.test(key);
@@ -413,11 +464,10 @@ function medal(key,got,size){const id='m'+(MID++),tier=MT[key],ms=/^count/.test(
  const leaf=(sx)=>{let o='';for(let i=0;i<6;i++){const a=(200+i*16)*Math.PI/180,x=60+50*Math.cos(a)*sx,y=60-50*Math.sin(a);o+=`<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="2.4" ry="5.2" transform="rotate(${(sx>0?-1:1)*(i*16-70)} ${x.toFixed(1)} ${y.toFixed(1)})"/>`}return o};
  const laurel=ms?`<g fill="url(#${id}g)" opacity="${got?1:.55}">${leaf(1)}${leaf(-1)}</g>`:'';
  const ribbon=ms?`<path d="M44 96l-8 22 9-4 5 7 6-21zM76 96l8 22-9-4-5 7-6-21z" fill="${got?(key==='count10'?'#5b7bb6':'#1f3266'):'#4a5676'}" stroke="url(#${id}g)" stroke-width="1.2"/>`:'';
- const ic=ms?`<text x="60" y="68" text-anchor="middle" font-family="Fraunces,Georgia,serif" font-weight="700" font-size="27" fill="url(#${id}g)">${key.slice(5)}</text><path d="M48 77h24" stroke="url(#${id}g)" stroke-width="1"/><path d="M60 37l1.6 3.3 3.6.5-2.6 2.5.6 3.6-3.2-1.7-3.2 1.7.6-3.6-2.6-2.5 3.6-.5z" fill="url(#${id}g)"/>`
-  :key==='circle'?sphereIcon(id,got):ORN[key]?`<circle cx="60" cy="60" r="${ms?36:44}" fill="${got?'rgba(11,20,48,.35)':'rgba(28,39,66,.35)'}"/>`+ORN[key](id,got,size):`<g transform="translate(37.2 37.2) scale(1.9)" fill="none" stroke="url(#${id}g)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="${MI[key]||MI.first}"/></g>`;
+ const ic=ms?msIcon(id,key,got,size):key==='circle'?sphereIcon(id,got):ORN[key]?`<circle cx="60" cy="60" r="${ms?36:44}" fill="${got?'rgba(11,20,48,.35)':'rgba(28,39,66,.35)'}"/>`+ORN[key](id,got,size):`<g transform="translate(37.2 37.2) scale(1.9)" fill="none" stroke="url(#${id}g)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="${MI[key]||MI.first}"/></g>`;
  const frost=`<g stroke="${got?'rgba(242,207,126,.18)':'rgba(255,255,255,.12)'}" stroke-width=".8">${[0,60,120].map(r=>`<line x1="60" y1="24" x2="60" y2="96" transform="rotate(${r} 60 60)"/>`).join('')}</g>`;
  return `<svg class="md" viewBox="0 0 120 ${ms?124:120}" width="${size}" height="${size}" role="img" aria-label="${got?'Earned':'Locked'} medal"><defs>
-<linearGradient id="${id}g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${g[0]}"/><stop offset=".5" stop-color="${g[1]}"/><stop offset="1" stop-color="${g[2]}"/></linearGradient>
+<linearGradient id="${id}g" gradientUnits="userSpaceOnUse" x1="20" y1="15" x2="100" y2="105"><stop offset="0" stop-color="${g[0]}"/><stop offset=".5" stop-color="${g[1]}"/><stop offset="1" stop-color="${g[2]}"/></linearGradient>
 <radialGradient id="${id}f" cx="50%" cy="35%" r="70%"><stop offset="0" stop-color="${face[0]}"/><stop offset="1" stop-color="${face[1]}"/></radialGradient></defs>
 ${ribbon}${rays}${laurel}<circle cx="60" cy="60" r="${ms?44:52}" fill="url(#${id}g)"/><circle cx="60" cy="60" r="${ms?41:49}" fill="url(#${id}f)"/>
 <circle cx="60" cy="60" r="${ms?38.5:46.5}" fill="none" stroke="url(#${id}g)" stroke-width=".9" opacity=".8"/>${ms?'':`<g stroke="url(#${id}g)" stroke-width=".7" opacity=".7">${ticks}</g>`}
