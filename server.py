@@ -118,7 +118,7 @@ BADGES = [
      "names":[["gymnazo loop"],["gymnazo mile"],["hike"],["loaded carry"]]},
     {"key":"rock","label":"Stability Master","icon":"🪨","desc":"Finished the Plank, Wall Sit, Single Leg Balance and Hang","kind":"names",
      "names":[["plank"],["wall sit"],["single leg balance"],["min hang"]]},
-    {"key":"circle","label":"Full Circle","icon":"🌀","desc":"Finished Rope Flow, Mace 360/Plate Halo, Lunge Matrix and TrueStretch","kind":"names",
+    {"key":"circle","label":"Spherical Flow","icon":"🌀","desc":"Finished Rope Flow, Mace 360/Plate Halo, Lunge Matrix and TrueStretch","kind":"names",
      "names":[["rope flow"],["mace","plate halo"],["lunge matrix"],["truestretch"]]},
     {"key":"legs","label":"Leg Day Legend","icon":"🦵","desc":"Finished every leg activity","kind":"names",
      "names":[["kettlebell squat"],["wall sit"],["single leg balance"],["jumps or calf raises","calf raise"],["box jump","box step"],["deep squat"],["lunge matrix"]]},
