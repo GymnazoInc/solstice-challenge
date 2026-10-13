@@ -248,7 +248,7 @@ function render(){
  $('grid').innerHTML=g;
  $('grid').querySelectorAll('button').forEach(b=>b.onclick=()=>{if(b.dataset.d<=t){SEL=b.dataset.d;render();$('checkcard').scrollIntoView({behavior:RM?'auto':'smooth'})}});
  renderActs();if(ME.activities&&ME.activities.length&&!ME.picksSaved&&!PKSHOWN){PKSHOWN=true;openPicker(true)}
- $('badges').innerHTML=(ME.badgeList||[]).map(m=>`<div class="badge ${m.got?'got shim':''}">${medal(m.key,m.got,118)}<span class="nm">${esc(m.label)}</span><small>${esc(m.desc)}</small>${m.got?'':'<span class="lk">Locked</span>'}</div>`).join('');
+ $('badges').innerHTML=(ME.badgeList||[]).map(m=>`<div class="badge ${m.got?'got shim':''}">${medal(m.key,m.got,118)}<span class="nm">${esc(m.label)}</span><small>${esc(m.desc)}</small>${m.got?'':(m.hint?`<small class="bh">${esc(m.hint)}</small>`:'')+'<span class="lk">Locked</span>'}</div>`).join('');
 }
 const ACTMSG=[[100,'🏆 Finished! Amazing work!'],[75,'🔥 75% done. Almost there!'],[50,'⭐ Halfway there. Keep going!'],[25,'❄️ 25% done. Great start!']];
 function actMsg(p){const m=ACTMSG.find(x=>p>=x[0]);return m?m[1]:'Tap a button to begin.'}

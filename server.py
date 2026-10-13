@@ -109,8 +109,8 @@ BADGES = [
     {"key":"capacity","label":"Capacity Badge","icon":"💪","desc":"Finished every Capacity activity","kind":"phase","phase":1},
     {"key":"acquire","label":"Acquire Badge","icon":"🏔️","desc":"Finished every Acquire activity","kind":"phase","phase":2},
     {"key":"practice","label":"Practice Badge","icon":"🌙","desc":"Finished every Practice activity","kind":"phase","phase":3},
-    {"key":"selflove","label":"Self Love Badge","icon":"💖","desc":"Cold plunge, 10 hugs, TrueStretch and journaling all done","kind":"names",
-     "names":[["ocean plunge","cold shower"],["hugs"],["truestretch"],["journal"]]},
+    {"key":"selflove","label":"Self Love Badge","icon":"💖","desc":"Cold plunge, 10 hugs, TrueStretch, journaling and 100 Supine Get-ups all done","kind":"names",
+     "names":[["ocean plunge","cold shower"],["hugs"],["truestretch"],["journal"],["supine get"]]},
     {"key":"row","label":"Row, Row, Row Your Boat","icon":"🚣","desc":"Finished the 500m, 1,000m and 2,000m rows","kind":"names",
      "names":[["500m row"],["1,000m row","1000m row"],["2,000m row","2000m row"]]},
     {"key":"muscle","label":"Mighty Muscles","icon":"💪","desc":"Finished the Kettlebell Squat, ViPR Press and FitFighter Slam","kind":"names",
@@ -128,13 +128,19 @@ BADGES = [
     {"key":"count10","label":"Snowball Rolling","icon":"⛄","desc":"Finished 10 activities","prize":"You earned a raffle entry!","kind":"count","n":10},
     {"key":"count20","label":"Shining Star","icon":"🌟","desc":"Finished 20 activities","prize":"You earned a second raffle entry!","kind":"count","n":20},
     {"key":"count30","label":"Solstice Champion","icon":"🏆","desc":"Finished all 30 activities","prize":"You earned a 1-month membership upgrade and a free shirt!","kind":"count","n":30},
-    {"key":"timed","label":"Time Tracker","icon":"⏱️","desc":"Finished your first timed activity","kind":"timed"},
+    {"key":"timed","label":"Time Tracker","icon":"⏱️","desc":"Complete 3 timed activities","kind":"timed","n":3},
 ]
 def is_timed(a):
     """Timed = measured in minutes (unit 'min…', or '10min'/'(2m+)' in the name), or a one-time effort where a time was recorded."""
     n = a["name"].casefold()
     if str(a.get("unit","")).casefold().startswith("min") or re.search(r"\d+\s*min", n) or re.search(r"\(\d+m\+\)", n): return True
     return a.get("kind") == "once" and bool((a.get("result") or {}).get("seconds"))
+def timed_done(acts): return len({a["id"] for a in acts if a["done"] and is_timed(a)})
+def badge_hint(b, acts):
+    """Progress hint for a locked badge (only for counted badges)."""
+    if b["kind"] == "timed": return "%d of %d timed activities done" % (min(timed_done(acts), b.get("n",1)), b.get("n",1))
+    if b["kind"] == "count": return "%d of %d activities done" % (min(sum(1 for a in acts if a["done"]), b["n"]), b["n"])
+    return ""
 BADGE = {b["key"]:b for b in BADGES}
 def badge_pub(b): return {"key":b["key"],"label":b["label"],"icon":b["icon"],"desc":b["desc"],"prize":b.get("prize","")}
 def badge_ok(b, uid, acts):
@@ -143,7 +149,7 @@ def badge_ok(b, uid, acts):
         L = [a for a in acts if a["phase"] == b["phase"]]
         return bool(L) and all(a["done"] for a in L)
     if b["kind"] == "count": return sum(1 for a in acts if a["done"]) >= b["n"]
-    if b["kind"] == "timed": return any(a["done"] and is_timed(a) for a in acts)
+    if b["kind"] == "timed": return timed_done(acts) >= b.get("n", 1)
     if b["kind"] == "names":
         for alts in b["names"]:
             L = [a for a in acts if any(x in a["name"].casefold() for x in alts)]
@@ -209,7 +215,7 @@ def me_payload(u):
     acts = activities_for(u[0])
     got = {r[0] for r in db.execute("SELECT key FROM badges WHERE user_id=?",(u[0],))}
     return {"name":u[1], "today":today().isoformat(), "start":start_end()[0].isoformat(), "end":start_end()[1].isoformat(), "beta":is_beta(),
-            "total":TOTAL, "badgeList":[dict(badge_pub(b), got=b["key"] in got) for b in BADGES], "activities":acts, "activitiesDone":sum(1 for a in acts if a["done"]),"picksSaved":bool(db.execute("SELECT 1 FROM user_picks WHERE user_id=?", (u[0],)).fetchone()), **s}
+            "total":TOTAL, "badgeList":[dict(badge_pub(b), got=b["key"] in got, hint="" if b["key"] in got else badge_hint(b, acts)) for b in BADGES], "activities":acts, "activitiesDone":sum(1 for a in acts if a["done"]),"picksSaved":bool(db.execute("SELECT 1 FROM user_picks WHERE user_id=?", (u[0],)).fetchone()), **s}
 
 def fdate(t): return datetime.fromtimestamp(t, TZ).date().isoformat() if t else ""
 def member_rows():

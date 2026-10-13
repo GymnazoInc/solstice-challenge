@@ -148,6 +148,28 @@ try:
     check("admin members endpoints need password", M("/api/admin/members/reset-pin", {"id": 1, "pin": "1234"})[0] == 401 and M("/api/admin/members/delete", {"id": 1, "confirm": "x"})[0] == 401)
     s, j, _ = M("/api/admin/members/delete", {"id": mid("Sol Bob"), "confirm": "wrong"}, admin="ma"); check("delete needs the exact name", s == 400)
     s, j, _ = M("/api/admin/members/delete", {"id": mid("Sol Bob"), "confirm": "sol bob"}, admin="ma"); check("admin delete member (metrics)", s == 200 and not q(MDB, "select 1 from users where name_key='sol bob'") and q(SDB, "select 1 from users where name_key='sol bob'"))
+    # ---- Time Tracker needs 3 different timed activities; Self Love needs Supine Get-ups too
+    def login_cookie(name, pin):
+        c = http.client.HTTPConnection("127.0.0.1", SP, timeout=15)
+        c.request("POST", "/api/login", json.dumps({"name": name, "pin": pin}), {"Content-Type": "application/json"})
+        r = c.getresponse(); body = r.read(); h = r.getheader("Set-Cookie"); assert h, (r.status, body); return h.split(";")[0]
+    def aid(name): return [a["id"] for a in S("/api/admin/list", {}, admin="sa")[1]["activities"] if a["name"] == name][0]
+    for nm in ("10min Plank", "10min Wall Sit", "10min Hang (supported)", "100 Supine Get-ups (Stand)"):
+        S("/api/admin/save", {"name": nm, "target": 10 if "min" in nm else 100, "unit": "minutes" if "min" in nm else "reps", "phase": 2}, admin="sa")
+    ck = login_cookie("Lock Test", "1357")
+    def me(): return S("/api/me", cookie=ck)[1]
+    def tt(): return [b for b in me()["badgeList"] if b["key"] == "timed"][0]
+    check("Time Tracker desc says 3 timed activities", tt()["desc"] == "Complete 3 timed activities" and tt()["hint"] == "0 of 3 timed activities done", tt())
+    s, j, _ = S("/api/progress", {"activity_id": aid("10min Plank"), "amount": 10}, cookie=ck)
+    check("1 timed activity: Time Tracker still locked", s == 200 and not tt()["got"] and tt()["hint"] == "1 of 3 timed activities done", tt())
+    S("/api/progress", {"activity_id": aid("10min Wall Sit"), "amount": 10}, cookie=ck)
+    check("2 timed activities: still locked", not tt()["got"] and tt()["hint"] == "2 of 3 timed activities done")
+    s, j, _ = S("/api/progress", {"activity_id": aid("10min Hang (supported)"), "amount": 10}, cookie=ck)
+    check("3 different timed activities: Time Tracker earned", tt()["got"] and any(b["key"] == "timed" for b in j.get("newBadges", [])), j.get("newBadges"))
+    S("/api/progress", {"activity_id": aid("100 Supine Get-ups (Stand)"), "amount": 100}, cookie=ck)
+    check("non-timed activity is not counted as timed", tt()["got"] and [b for b in me()["badgeList"] if b["key"] == "count10"][0]["hint"] == "4 of 10 activities done")
+    sl = [b for b in me()["badgeList"] if b["key"] == "selflove"][0]
+    check("Self Love desc mentions Supine Get-ups", "Supine Get-ups" in sl["desc"] and not sl["got"], sl)
 finally:
     for p in procs.values(): p.terminate()
 print(f"\n{P} passed, {F} failed"); sys.exit(1 if F else 0)
