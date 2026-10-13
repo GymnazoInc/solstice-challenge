@@ -285,16 +285,13 @@ class H(http.server.BaseHTTPRequestHandler):
             cnt = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
             return self.send(200, {"members":cnt, "wins":[{"name":r[0],"key":r[1],"label":BADGE[r[1]]["label"],"icon":BADGE[r[1]]["icon"],"at":r[2]} for r in rows]})
         if p == "/api/leaderboard":
-            u = user_from(self)
-            rows = []
-            for uid,name in db.execute("SELECT id,name FROM users").fetchall():
-                st = stats(uid)
-                if st["done"]>0: rows.append({"id":uid,"name":name,"done":st["done"],"current":st["current"],"acts":sum(1 for a in activities_for(uid) if a["done"])})
-            rows.sort(key=lambda r:(-r["done"],-r["current"],r["name"].casefold()))
-            for i,r in enumerate(rows): r["rank"]=i+1
-            mine = next((r for r in rows if u and r["id"]==u[0]), None)
-            strip = lambda r:{"rank":r["rank"],"name":r["name"],"done":r["done"],"current":r["current"],"acts":r["acts"],"me":bool(u and r["id"]==u[0])}
-            return self.send(200, {"total":len(rows),"top":[strip(r) for r in rows[:10]],"me":strip(mine) if mine else None})
+            # Tracking Board: every member, alphabetical, one snowflake per 5 completed activities
+            u = user_from(self); rows = []
+            for uid, name in db.execute("SELECT id,name FROM users").fetchall():
+                n = sum(1 for a in activities_for(uid) if a["done"])
+                rows.append({"name":name, "acts":n, "flakes":min(6, n // 5), "me":bool(u and uid == u[0])})
+            rows.sort(key=lambda r: r["name"].casefold())
+            return self.send(200, {"total":len(rows), "members":rows})
         self.send(404, {"error":"nf"})
     def _post(self, p):
         b = self.body()

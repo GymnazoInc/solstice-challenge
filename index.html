@@ -121,6 +121,15 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 #bpop .medal{width:220px;height:220px;margin:4px auto 10px;border-radius:50%;filter:drop-shadow(0 0 28px rgba(242,207,126,.55))}#bpop .medal svg{width:100%;height:100%}#bpt{font-variant:small-caps;letter-spacing:.06em}
 #bpop h2{font-size:30px;color:var(--gold2)}
 .pkall{display:flex;gap:10px;margin:10px 0}.pkall button{min-height:56px;font-size:18px}
+.tbh{text-align:center;margin-bottom:12px}.tbh .t1{font-family:var(--serif);font-weight:600;font-size:28px;letter-spacing:.06em;color:var(--cream)}.tbh .t2{font-weight:700;letter-spacing:.08em;color:var(--gold2);font-size:17px;margin-top:4px}.tbh .t3{margin-top:10px;font-family:var(--serif);font-style:italic;color:var(--ice);font-size:19px}
+.tbg{display:grid;grid-template-columns:1fr 1fr;border:2px solid rgba(227,176,75,.55);border-radius:14px;overflow:hidden}
+.tbc{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);align-content:start}.tbc+.tbc{border-left:2px solid rgba(227,176,75,.55)}
+.tbc>div{padding:10px 8px;border-bottom:1px solid rgba(188,214,242,.22);min-height:56px;display:flex;align-items:center;font-size:18px;line-height:1.2;overflow-wrap:break-word;hyphens:auto}
+.tbc>div:nth-child(odd){border-right:1px solid rgba(188,214,242,.22)}
+.tbc .hd{background:rgba(227,176,75,.16);font-weight:700;color:var(--gold2);font-family:var(--serif);font-size:19px;min-height:60px}.tbc .hd.sm{font-family:var(--sans);font-size:13px;line-height:1.25;text-align:center;justify-content:center}
+.tbc .fl{font-size:17px;letter-spacing:-1px;flex-wrap:wrap;justify-content:center;line-height:1.3}.tbc .me{background:rgba(227,176,75,.22);font-weight:700;color:var(--gold2)}
+@media(max-width:400px){.tbc>div{font-size:15px;padding:8px 5px}.tbc .fl{font-size:14px}.tbc .hd{font-size:16px}.tbh .t1{font-size:23px}}
+@media(max-width:340px){.tbg{grid-template-columns:1fr}.tbc+.tbc{border-left:0;border-top:2px solid rgba(227,176,75,.55)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style></head><body>
 <div class="stars"></div><canvas id="snow"></canvas><canvas id="confetti"></canvas><div id="toast" role="status" aria-live="polite"></div><div id="bpop" class="hide" role="dialog" aria-modal="true" aria-labelledby="bpt"><div class="in"><div class="small" style="letter-spacing:.2em;color:var(--gold)">NEW BADGE!</div><div class="medal shim" id="bpi"></div><h2 id="bpt"></h2><p id="bpd" style="margin-top:0"></p><button class="gold big" id="bpok">Yay! 🎉</button></div></div>
@@ -136,7 +145,7 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 </header>
 
 <div id="betabar" class="hide" style="background:#ffd36b;color:#0f1b3d;font-weight:700;text-align:center;border-radius:16px;padding:12px;margin-top:10px;font-size:19px">🧪 BETA – test data only. Entries here are practice and will be cleared before the real challenge. Check-ins are open now.</div>
-<nav><button data-t="me" class="act"><span class="e">🏠</span>My Page</button><button data-t="lb"><span class="e">❄️</span>Momentum</button><button data-t="wins"><span class="e">🎉</span>Wins</button></nav>
+<nav><button data-t="me" class="act"><span class="e">🏠</span>My Page</button><button data-t="lb"><span class="e">❄️</span>Tracking Board</button><button data-t="wins"><span class="e">🎉</span>Wins</button></nav>
 
 <div id="tab-me">
 <div id="login" class="card hide">
@@ -195,7 +204,7 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 <div class="card"><h2>My Badges</h2><div class="badges" id="badges"></div></div>
 </div>
 </div>
-<div id="tab-lb" class="hide"><div class="card"><h2>❄️ Momentum board</h2><p class="small" style="margin-top:0">See who is moving with you. Every day counts, and we're cheering for everyone! 💙</p><div id="lbt">Loading…</div></div></div>
+<div id="tab-lb" class="hide"><div class="card tb"><div class="tbh"><div class="t1">WINTER SOLSTICE 2026</div><div class="t2">OCTOBER 21<sup>ST</sup> – DECEMBER 21<sup>ST</sup></div><div class="t3">Earn a ❄️ for every 5 activities!</div></div><div id="lbt">Loading…</div></div></div></div>
 <div id="tab-wins" class="hide"><div class="card"><h2>🎉 Wins Wall</h2><div id="wins" class="small">Loading…</div></div></div>
 </div>
 <script>
@@ -501,15 +510,17 @@ window.__cf=CF;
 function snow(){if(RM)return;const c=$('snow'),x=c.getContext('2d');let W,H;const rs=()=>{W=c.width=innerWidth;H=c.height=innerHeight};rs();addEventListener('resize',rs);
  const F=[...Array(46)].map(()=>({x:Math.random()*W,y:Math.random()*H,r:1+Math.random()*2.6,v:.3+Math.random()*.8,a:Math.random()*6}));
  (function step(){x.clearRect(0,0,W,H);x.fillStyle='rgba(247,239,223,.75)';F.forEach(p=>{p.y+=p.v;p.x+=Math.sin(p.a+=.01)*.4;if(p.y>H+5){p.y=-5;p.x=Math.random()*W}x.beginPath();x.arc(p.x,p.y,p.r,0,6.3);x.fill()});if(!document.hidden)requestAnimationFrame(step);else setTimeout(step,500)})()}
-async function lb(){const {j}=await api('/api/leaderboard');if(!j.top||!j.top.length){$('lbt').textContent='No check-ins yet. Be the first to get the momentum going! 🌟';return}
- const row=r=>`<div class="lb ${r.me?'me':''}"><span class="r">${r.current>=3?'🔥':'❄️'}</span><span class="n">${esc(r.name)}${r.me?' (you)':''}</span><span class="s"><b>${r.done}</b> day${r.done===1?'':'s'} active${r.current>1?`<span class="a">${r.current} in a row</span>`:''}${r.acts?`<span class="a">🎯 ${r.acts} goal${r.acts>1?'s':''} done</span>`:''}</span></div>`;
- let h=j.top.map(row).join('');
- if(j.me&&j.me.rank>10)h+='<div class="small" style="text-align:center;margin:6px">· · ·</div>'+row(j.me);
- else if(!j.me&&ME)h+='<p class="small">Check in once to join the Momentum board!</p>';
- $('lbt').innerHTML=h+`<p class="small">${j.total} members building momentum together</p>`}
+async function lb(){const {ok,j}=await api('/api/leaderboard');if(!ok||!j.members)return;const L=j.members;
+ if(!L.length){$('lbt').innerHTML='<p class="small">No one has joined yet. Be the first! 🌟</p>';return}
+ const half=Math.ceil(L.length/2),cols=[L.slice(0,half),L.slice(half)];
+ const head='<div class="hd">Name</div><div class="hd sm">Earn a ❄️ for every 5 activities!</div>';
+ const cell=r=>`<div class="${r.me?'me':''}">${esc(r.name)}${r.me?' (you)':''}</div><div class="fl ${r.me?'me':''}" aria-label="${r.flakes} snowflakes, ${r.acts} activities done">${'<span>❄️</span>'.repeat(r.flakes)||'&nbsp;'}</div>`;
+ const pad=c=>c.length<half?'<div>&nbsp;</div><div>&nbsp;</div>'.repeat(half-c.length):'';
+ $('lbt').innerHTML=`<div class="tbg">${cols.map(c=>`<div class="tbc">${head}${c.map(cell).join('')}${pad(c)}</div>`).join('')}</div><p class="small" style="text-align:center">${j.total} members on the board</p>`}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('act',x===b));['me','lb','wins'].forEach(t=>$('tab-'+t).classList.toggle('hide',t!==b.dataset.t));if(b.dataset.t==='lb')lb();if(b.dataset.t==='wins')wins();scrollTo(0,0)});
 if(BETA){$('betabar').classList.remove('hide');$('fedhelp').textContent='Beta test: make a new practice account here (any name and 4-digit PIN). It is separate from your real Gymnazo account.';document.title='BETA · '+document.title;
- const tick=()=>{if(document.hidden)return;if(!$('tab-lb').classList.contains('hide'))lb();if(!$('tab-wins').classList.contains('hide'))wins()};
+}
+{const tick=()=>{if(document.hidden)return;if(!$('tab-lb').classList.contains('hide'))lb();if(!$('tab-wins').classList.contains('hide'))wins()};
  setInterval(tick,6000);document.addEventListener('visibilitychange',tick)}
 snow();
 (async()=>{const {ok,j}=await api('/api/me');if(ok)ME=j;render();wins()})();
