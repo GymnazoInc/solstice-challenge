@@ -77,6 +77,40 @@ def migrate2(c):
                 c.execute("UPDATE progress SET amount=? WHERE id=?", (max(1, round(amt * 100 / 5280)), pid))
         c.execute("UPDATE activities SET unit='miles',target=100,decimals=2 WHERE id=?", (aid,))
 migrate2(MAIN); migrate2(BETA)
+def migrate3(c):
+    """Optional per-entry extras (weight in lbs, rower damper 1-10, carry equipment). Additive only: existing rows keep their data."""
+    for t in ("progress", "results"):
+        cols = [r[1] for r in c.execute("PRAGMA table_info(%s)" % t)]
+        for col, ddl in (("weight_lbs","REAL"),("damper","INTEGER"),("equipment","TEXT")):
+            if col not in cols: c.execute("ALTER TABLE %s ADD COLUMN %s %s" % (t, col, ddl))
+migrate3(MAIN); migrate3(BETA)
+WEIGHT_KEYS = ("kettlebell squat","overhead press","overhead slam","mace","plate halo","medball","med ball","medicine ball","loaded carry")
+def extras_for(name):
+    """Which optional extra inputs an activity gets, matched by name keywords."""
+    n = str(name).casefold()
+    if re.search(r"\brows?\b|\browing\b", n): return ["damper"]
+    out = []
+    if "loaded carry" in n: out.append("equipment")
+    if any(k in n for k in WEIGHT_KEYS): out.append("weight")
+    return out
+def parse_extras(name, b):
+    """Returns (weight_lbs, damper, equipment) or an error string. Only fields allowed for this activity are kept."""
+    ex = extras_for(name); wt = dm = eq = None
+    if "weight" in ex and b.get("weight_lbs") not in (None, ""):
+        try: wt = float(b.get("weight_lbs"))
+        except Exception: wt = -1
+        if not (wt == wt and 0 < wt <= 1500): return "Weight should be a number of pounds (more than 0, up to 1500), or leave it blank."
+        wt = round(wt, 1)
+    if "damper" in ex and b.get("damper") not in (None, ""):
+        try: dm = float(b.get("damper"))
+        except Exception: dm = -1
+        if not (dm == int(dm) and 1 <= dm <= 10): return "Damper setting should be a whole number from 1 to 10, or leave it blank."
+        dm = int(dm)
+    if "equipment" in ex:
+        eq = re.sub(r"\s+", " ", re.sub(r"<[^>]*>", "", str(b.get("equipment") or ""))).strip()[:60] or None
+    return (wt, dm, eq)
+def extras_text(wt, dm, eq):
+    return "; ".join(filter(None, [("%g lbs" % wt) if wt else "", ("damper %d" % dm) if dm else "", eq or ""]))
 BETA_TABLES = ("admin_audit","badges","users","sessions","checkins","wins","progress","user_activities","user_picks","comments","reactions","results","repeats")
 def beta_sync_activities():
     """Beta uses the same activity list as the real challenge (copied from the main DB, same ids)."""
@@ -191,7 +225,7 @@ def user_from(h):
 def activities_for(uid):
     out = []
     chosen = {r[0] for r in db.execute("SELECT activity_id FROM user_activities WHERE user_id=?", (uid,))}
-    res = {r[0]:r[1:] for r in db.execute("SELECT activity_id,seconds,weight,wunit FROM results WHERE user_id=?", (uid,))}
+    res = {r[0]:r[1:] for r in db.execute("SELECT activity_id,seconds,weight,wunit,weight_lbs,damper,equipment FROM results WHERE user_id=?", (uid,))}
     reps = {}
     for aid_,day_,note_ in db.execute("SELECT activity_id,day,note FROM repeats WHERE user_id=? ORDER BY id", (uid,)): reps.setdefault(aid_, []).append({"day":day_,"note":note_ or ""})
     for aid,name,target,unit,phase,kind,rec,rc,dec in db.execute("SELECT id,name,target,unit,COALESCE(phase,0),COALESCE(kind,'chunked'),COALESCE(record_type,'none'),COALESCE(repeat_count,3),COALESCE(decimals,0) FROM activities WHERE active=1 ORDER BY sort,id").fetchall():
@@ -203,11 +237,12 @@ def activities_for(uid):
         if kind == "once":
             r = res.get(aid)
             out.append({"id":aid,"name":name,"target":1,"unit":unit,"phase":phase,"kind":"once","record":rec,"total":1 if r else 0,"pct":100 if r else 0,"done":bool(r),
-                        "result":({"seconds":r[0],"weight":r[1],"unit":r[2]} if r else None),"chosen":aid in chosen,"notes":notes})
+                        "result":({"seconds":r[0],"weight":r[1],"unit":r[2],"weight_lbs":r[3],"damper":r[4],"equipment":r[5]} if r else None),"chosen":aid in chosen,"notes":notes,"extras":extras_for(name)})
             continue
         tot = db.execute("SELECT COALESCE(SUM(amount),0) FROM progress WHERE user_id=? AND activity_id=?", (uid,aid)).fetchone()[0]
         tot = min(tot, target)
-        out.append({"id":aid,"name":name,"target":target,"unit":unit,"phase":phase,"kind":"chunked","record":"none","total":tot,"pct":int(tot*100//target) if target else 0,"done":tot>=target,"chosen":aid in chosen,"notes":notes,"dec":dec})
+        out.append({"id":aid,"name":name,"target":target,"unit":unit,"phase":phase,"kind":"chunked","record":"none","total":tot,"pct":int(tot*100//target) if target else 0,"done":tot>=target,"chosen":aid in chosen,"notes":notes,"dec":dec,"extras":(ex:=extras_for(name)),
+                    "log":([{"amount":x[0],"date":fdate(x[1]),"weight_lbs":x[2],"damper":x[3],"equipment":x[4]} for x in db.execute("SELECT amount,created,weight_lbs,damper,equipment FROM progress WHERE user_id=? AND activity_id=? ORDER BY id DESC LIMIT 10", (uid,aid))] if ex else [])})
     return out
 
 def me_payload(u):
@@ -238,10 +273,10 @@ def member_detail(uid):
     d["checkins"] = [{"day":r[0],"note":r[1] or ""} for r in db.execute("SELECT day,note FROM checkins WHERE user_id=? ORDER BY day DESC", (uid,))]
     d["picks"] = [nm.get(r[0],"?") for r in db.execute("SELECT activity_id FROM user_activities WHERE user_id=?", (uid,))]
     prog = {}
-    for aid,amt,c in db.execute("SELECT activity_id,amount,created FROM progress WHERE user_id=? ORDER BY id", (uid,)):
-        p = prog.setdefault(aid, {"activity":nm.get(aid,"?"),"target":tg.get(aid),"total":0,"entries":[]}); p["total"] += amt; p["entries"].append({"amount":amt,"date":fdate(c)})
+    for aid,amt,c,wl,dm,eq in db.execute("SELECT activity_id,amount,created,weight_lbs,damper,equipment FROM progress WHERE user_id=? ORDER BY id", (uid,)):
+        p = prog.setdefault(aid, {"activity":nm.get(aid,"?"),"target":tg.get(aid),"total":0,"entries":[]}); p["total"] += amt; p["entries"].append({"amount":amt,"date":fdate(c),"weight_lbs":wl,"damper":dm,"equipment":eq})
     d["progress"] = list(prog.values())
-    d["results"] = [{"activity":nm.get(r[0],"?"),"seconds":r[1],"weight":r[2],"unit":r[3],"date":fdate(r[4])} for r in db.execute("SELECT activity_id,seconds,weight,wunit,created FROM results WHERE user_id=?", (uid,))]
+    d["results"] = [{"activity":nm.get(r[0],"?"),"seconds":r[1],"weight":r[2],"unit":r[3],"date":fdate(r[4]),"weight_lbs":r[5],"damper":r[6],"equipment":r[7]} for r in db.execute("SELECT activity_id,seconds,weight,wunit,created,weight_lbs,damper,equipment FROM results WHERE user_id=?", (uid,))]
     d["repeats"] = [{"activity":nm.get(r[0],"?"),"day":r[1],"note":r[2] or "","date":fdate(r[3])} for r in db.execute("SELECT activity_id,day,note,created FROM repeats WHERE user_id=? ORDER BY id", (uid,))]
     d["comments"] = [{"activity":nm.get(r[0],"?"),"body":r[1],"date":fdate(r[2]),"hidden":bool(r[3])} for r in db.execute("SELECT activity_id,body,created,hidden FROM comments WHERE user_id=? ORDER BY id DESC", (uid,))]
     return d
@@ -449,8 +484,10 @@ class H(http.server.BaseHTTPRequestHandler):
     def log_progress(self, u, b):
         try: aid = int(b.get("activity_id")); raw = float(b.get("amount"))
         except Exception: return self.send(400, {"error":"Please type a number."})
-        a = db.execute("SELECT target,COALESCE(kind,'chunked'),COALESCE(decimals,0) FROM activities WHERE id=? AND active=1", (aid,)).fetchone()
+        a = db.execute("SELECT target,COALESCE(kind,'chunked'),COALESCE(decimals,0),name FROM activities WHERE id=? AND active=1", (aid,)).fetchone()
         if not a: return self.send(404, {"error":"That activity isn't available."})
+        ex = parse_extras(a[3], b)
+        if isinstance(ex, str): return self.send(400, {"error":ex})
         if raw != raw or abs(raw) > 1e7: return self.send(400, {"error":"Please type a number."})
         amt = int(round(raw * 10 ** a[2]))
         if a[1] != "chunked": return self.send(400, {"error":"This one isn't added up in pieces. Please use its own button."})
@@ -459,13 +496,15 @@ class H(http.server.BaseHTTPRequestHandler):
         room = a[0] - tot
         if room <= 0: return self.send(400, {"error":"You already finished this one. Amazing!"})
         amt = min(amt, room)
-        db.execute("INSERT INTO progress(user_id,activity_id,amount,created) VALUES(?,?,?,?)", (u[0],aid,amt,time.time()))
+        db.execute("INSERT INTO progress(user_id,activity_id,amount,created,weight_lbs,damper,equipment) VALUES(?,?,?,?,?,?,?)", (u[0],aid,amt,time.time())+ex)
         self.send(200, {"added":amt, "newBadges":sync_badges(u[0]), **me_payload(u)})
     def record_result(self, u, b):
         try: aid = int(b.get("activity_id"))
         except Exception: return self.send(400, {"error":"bad activity"})
-        a = db.execute("SELECT COALESCE(kind,'chunked'),COALESCE(record_type,'none') FROM activities WHERE id=? AND active=1", (aid,)).fetchone()
+        a = db.execute("SELECT COALESCE(kind,'chunked'),COALESCE(record_type,'none'),name FROM activities WHERE id=? AND active=1", (aid,)).fetchone()
         if not a: return self.send(404, {"error":"That activity isn't available."})
+        ex = parse_extras(a[2], b)
+        if isinstance(ex, str): return self.send(400, {"error":ex})
         if a[0] != "once": return self.send(400, {"error":"Use the add buttons for this one."})
         rec = a[1]; secs = None; wt = None; wu = None
         def num(v, default=0):
@@ -485,11 +524,14 @@ class H(http.server.BaseHTTPRequestHandler):
         if rec in ("weight","both"):
             wt = num(b.get("weight"), None); wu = str(b.get("unit","lb")).lower()
             if wu not in ("lb","kg"): return self.send(400, {"error":"Please choose lb or kg."})
-            if wt is None or wt <= 0 or wt > (1500 if wu == "lb" else 700):
+            if "weight" in extras_for(a[2]) and b.get("weight") in (None, ""): wt = wu = None  # weight is optional for these
+            elif wt is None or wt <= 0 or wt > (1500 if wu == "lb" else 700):
                 return self.send(400, {"error":"Please enter the weight you used (a number bigger than 0)."})
-            wt = round(wt, 1)
+            if wt is not None:
+                wt = round(wt, 1)
+                if ex[0] is None and "weight" in extras_for(a[2]): ex = (round(wt if wu == "lb" else wt * 2.20462, 1),) + ex[1:]
         first = not db.execute("SELECT 1 FROM results WHERE user_id=? AND activity_id=?", (u[0],aid)).fetchone()
-        db.execute("INSERT INTO results(user_id,activity_id,seconds,weight,wunit,created) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,activity_id) DO UPDATE SET seconds=excluded.seconds,weight=excluded.weight,wunit=excluded.wunit", (u[0],aid,secs,wt,wu,time.time()))
+        db.execute("INSERT INTO results(user_id,activity_id,seconds,weight,wunit,created,weight_lbs,damper,equipment) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,activity_id) DO UPDATE SET seconds=excluded.seconds,weight=excluded.weight,wunit=excluded.wunit,weight_lbs=excluded.weight_lbs,damper=excluded.damper,equipment=excluded.equipment", (u[0],aid,secs,wt,wu,time.time())+ex)
         self.send(200, {"first":first, "newBadges":sync_badges(u[0]), **me_payload(u)})
     def repeat_done(self, u, b):
         try: aid = int(b.get("activity_id"))
@@ -632,16 +674,16 @@ class H(http.server.BaseHTTPRequestHandler):
             rows += [[r["name"],r["joined"],r["days"],r["streak"],r["completed"],m["activities"],r["raffle"],"yes" if r["finished30"] else "no",r["last_active"],r["notes"]] for r in m["members"]]
             return self.send(200, csv_text(rows), "text/csv; charset=utf-8")
         if p == "/api/admin/members/inputs-csv":
-            rows = [["member","type","activity","date","value","note"]]
+            rows = [["member","type","activity","date","value","note","weight_lbs","damper","equipment"]]
             for r in member_rows()["members"]:
                 d = member_detail(r["id"]); n = d["name"]
-                for c in d["checkins"]: rows.append([n,"check-in","",c["day"],"",c["note"]])
-                for a in d["picks"]: rows.append([n,"picked","","","",a])
+                for c in d["checkins"]: rows.append([n,"check-in","",c["day"],"",c["note"],"","",""])
+                for a in d["picks"]: rows.append([n,"picked","","","",a,"","",""])
                 for a in d["progress"]:
-                    for e in a["entries"]: rows.append([n,"progress",a["activity"],e["date"],e["amount"],"total %s of %s"%(a["total"],a["target"])])
-                for x in d["results"]: rows.append([n,"result",x["activity"],x["date"],"; ".join(filter(None,[("%dm%02ds"%divmod(x["seconds"],60)) if x["seconds"] else "", ("%s %s"%(x["weight"],x["unit"])) if x["weight"] else ""])),""])
-                for x in d["repeats"]: rows.append([n,"repeat",x["activity"],x["day"],"",x["note"]])
-                for x in d["comments"]: rows.append([n,"note",x["activity"],x["date"],"hidden" if x["hidden"] else "",x["body"]])
+                    for e in a["entries"]: rows.append([n,"progress",a["activity"],e["date"],e["amount"],"total %s of %s"%(a["total"],a["target"]),e["weight_lbs"] or "",e["damper"] or "",e["equipment"] or ""])
+                for x in d["results"]: rows.append([n,"result",x["activity"],x["date"],"; ".join(filter(None,[("%dm%02ds"%divmod(x["seconds"],60)) if x["seconds"] else "", ("%s %s"%(x["weight"],x["unit"])) if x["weight"] else ""])),"",x["weight_lbs"] or "",x["damper"] or "",x["equipment"] or ""])
+                for x in d["repeats"]: rows.append([n,"repeat",x["activity"],x["day"],"",x["note"],"","",""])
+                for x in d["comments"]: rows.append([n,"note",x["activity"],x["date"],"hidden" if x["hidden"] else "",x["body"],"","",""])
             return self.send(200, csv_text(rows), "text/csv; charset=utf-8")
         if p == "/api/admin/members/reset-pin":
             pin = str(b.get("pin",""))
@@ -762,7 +804,7 @@ class H(http.server.BaseHTTPRequestHandler):
         nm = db.execute("SELECT name FROM users WHERE id=?", (uid,)).fetchone()[0]
         acts = activities_for(uid)
         ent = {}
-        for i, aid, amt, c in db.execute("SELECT id,activity_id,amount,created FROM progress WHERE user_id=? ORDER BY id", (uid,)): ent.setdefault(aid, []).append({"id":i,"amount":amt,"date":fdate(c)})
+        for i, aid, amt, c, wl, dm, eq in db.execute("SELECT id,activity_id,amount,created,weight_lbs,damper,equipment FROM progress WHERE user_id=? ORDER BY id", (uid,)): ent.setdefault(aid, []).append({"id":i,"amount":amt,"date":fdate(c),"extra":extras_text(wl,dm,eq)})
         rep = {}
         for i, aid, d, n in db.execute("SELECT id,activity_id,day,note FROM repeats WHERE user_id=? ORDER BY id", (uid,)): rep.setdefault(aid, []).append({"id":i,"day":d,"note":n or ""})
         for a in acts:

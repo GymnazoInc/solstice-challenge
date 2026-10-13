@@ -203,6 +203,53 @@ try:
     S("/api/admin/save", {"name": "2m Walk Backward", "target": 1, "unit": "x", "phase": 3}, admin="sa")
     s, j, _ = S("/api/progress", {"activity_id": aid("2m Walk Backward"), "amount": 1}, cookie=ck)
     check("Stability Master earned once Ankle Rockers and Walk Backward done", badge("rock")["got"], j.get("newBadges"))
+    # ---- optional extras: weight (lbs), rower damper (1-10), loaded-carry equipment
+    S("/api/admin/save", {"name": "500m Row Machine", "kind": "once", "record": "time", "unit": "effort", "phase": 1}, admin="sa")
+    S("/api/admin/save", {"name": "100 Kettlebell Squat", "kind": "once", "record": "both", "unit": "effort", "phase": 1}, admin="sa")
+    S("/api/admin/save", {"name": "Loaded Carry Test", "target": 10, "unit": "laps", "phase": 1}, admin="sa")
+    S("/api/admin/save", {"name": "1,000 Med Ball Throw X", "target": 100, "unit": "reps", "phase": 1}, admin="sa")
+    ex = {a["name"]: a.get("extras") for a in me()["activities"]}
+    check("extras matched by name", ex["500m Row Machine"] == ["damper"] and ex["100 Kettlebell Squat"] == ["weight"] and ex["Loaded Carry Test"] == ["equipment", "weight"]
+          and ex["1,000 Med Ball Throw X"] == ["weight"] and ex["100 FitFighter Overhead Slam"] == ["weight"] and ex["1,000 MACE 360/Plate Halo"] == ["weight"]
+          and ex["100 ViPR Curl Overhead Press"] == ["weight"] and ex["10min Plank"] == [], ex)
+    row = aid("500m Row Machine")
+    s, j, _ = S("/api/result", {"activity_id": row, "minutes": 2, "seconds": 5, "damper": 11}, cookie=ck); check("damper 11 rejected", s == 400)
+    s, j, _ = S("/api/result", {"activity_id": row, "minutes": 2, "seconds": 5, "damper": 6, "weight_lbs": 50}, cookie=ck)
+    r_ = [a for a in j["activities"] if a["id"] == row][0]["result"]
+    check("row result stores damper (weight ignored for rows)", s == 200 and r_["damper"] == 6 and r_["weight_lbs"] is None, (s, j.get("error"), r_))
+    s, j, _ = S("/api/result", {"activity_id": row, "minutes": 2, "seconds": 0}, cookie=ck)
+    check("damper is optional", s == 200 and [a for a in j["activities"] if a["id"] == row][0]["result"]["damper"] is None)
+    S("/api/result", {"activity_id": row, "minutes": 2, "seconds": 5, "damper": 6}, cookie=ck)
+    kb = aid("100 Kettlebell Squat")
+    s, j, _ = S("/api/result", {"activity_id": kb, "minutes": 3, "seconds": 0}, cookie=ck); check("kettlebell weight optional", s == 200, j)
+    s, j, _ = S("/api/result", {"activity_id": kb, "minutes": 3, "seconds": 0, "weight": 20, "unit": "kg"}, cookie=ck)
+    check("kettlebell weight saved in lbs too", [a for a in j["activities"] if a["id"] == kb][0]["result"]["weight_lbs"] == 44.1)
+    lc = aid("Loaded Carry Test")
+    s, j, _ = S("/api/progress", {"activity_id": lc, "amount": 2, "weight_lbs": 70, "equipment": "two <b>kettlebells</b>"}, cookie=ck)
+    lg = [a for a in j["activities"] if a["id"] == lc][0]["log"]
+    check("loaded carry entry stores weight + equipment", s == 200 and lg[0]["weight_lbs"] == 70 and lg[0]["equipment"] == "two kettlebells", lg)
+    s, j, _ = S("/api/progress", {"activity_id": lc, "amount": 1}, cookie=ck); check("carry extras optional", s == 200)
+    s, j, _ = S("/api/progress", {"activity_id": lc, "amount": 1, "weight_lbs": "abc"}, cookie=ck); check("bad weight rejected", s == 400)
+    mbx = aid("1,000 Med Ball Throw X"); S("/api/progress", {"activity_id": mbx, "amount": 10, "weight_lbs": 12}, cookie=ck)
+    got = lambda: sorted(b["key"] for b in me()["badgeList"] if b["got"]); with_x = got()
+    S("/api/progress/undo", {"activity_id": mbx}, cookie=ck); S("/api/progress", {"activity_id": mbx, "amount": 10}, cookie=ck); no_x = got()
+    S("/api/progress/undo", {"activity_id": mbx}, cookie=ck); S("/api/progress", {"activity_id": mbx, "amount": 10, "weight_lbs": 12}, cookie=ck)
+    check("badges identical with or without extras", with_x == no_x == got(), (with_x, no_x))
+    d = S("/api/admin/members/detail", {"id": sid("Ann Lee") if False else [m["id"] for m in S("/api/admin/members", {}, admin="sa")[1]["members"] if m["name"] == me()["name"]][0]}, admin="sa")[1]
+    pe = [p for p in d["progress"] if p["activity"] == "Loaded Carry Test"][0]["entries"]
+    check("admin detail shows extras", pe[0]["weight_lbs"] == 70 and pe[0]["equipment"] == "two kettlebells" and [r for r in d["results"] if r["activity"] == "500m Row Machine"][0]["damper"] == 6)
+    csvt = S("/api/admin/members/inputs-csv", {}, admin="sa")[2].decode()
+    check("CSV has extras columns + values", csvt.splitlines()[0].endswith("weight_lbs,damper,equipment") and ",70.0,,two kettlebells" in csvt and ",,6," in csvt and ",12.0,," in csvt, csvt[:300])
+    # migration keeps old data and adds columns (main + beta DB)
+    od = os.path.join(tmp, "old"); os.makedirs(od)
+    for f in ("old.db", "solstice-beta.db"):
+        c = sqlite3.connect(os.path.join(od, f)); c.execute("CREATE TABLE progress(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, activity_id INTEGER, amount INTEGER, created REAL)")
+        c.execute("CREATE TABLE results(user_id INTEGER, activity_id INTEGER, seconds INTEGER, weight REAL, wunit TEXT, created REAL, PRIMARY KEY(user_id, activity_id))")
+        c.execute("INSERT INTO progress(user_id,activity_id,amount,created) VALUES(7,1,42,1)"); c.execute("INSERT INTO results VALUES(7,2,60,30,'lb',1)"); c.commit(); c.close()
+    pm = subprocess.Popen([sys.executable, os.path.join(SOL, "server.py")], env=dict(base, PORT="18109", DB_PATH=os.path.join(od, "old.db"))); time.sleep(1.3); pm.terminate(); pm.wait()
+    for f in ("old.db", "solstice-beta.db"):
+        cols = {r[1] for r in q(os.path.join(od, f), "pragma table_info(progress)")} & {r[1] for r in q(os.path.join(od, f), "pragma table_info(results)")}
+        check("migration on %s adds columns and keeps rows" % f, {"weight_lbs", "damper", "equipment"} <= cols and q(os.path.join(od, f), "select amount from progress") == [(42,)] and q(os.path.join(od, f), "select seconds,weight from results") == [(60, 30.0)])
 finally:
     for p in procs.values(): p.terminate()
 print(f"\n{P} passed, {F} failed"); sys.exit(1 if F else 0)
