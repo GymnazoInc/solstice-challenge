@@ -187,6 +187,19 @@ try:
     S("/api/admin/save", {"id": mb, "name": "1,000 Ball Toss", "target": 1, "unit": "reps", "phase": 2}, admin="sa")
     S("/api/progress/undo", {"activity_id": mb}, cookie=ck); S("/api/progress", {"activity_id": mb, "amount": 1}, cookie=ck)
     check("unrelated name does not satisfy Strong Arms", not arms())
+    # ---- new 2m Practice requirements for Self Love / Stability Master / Miles & Smiles
+    def badge(k): return [b for b in me()["badgeList"] if b["key"] == k][0]
+    check("Self Love desc lists Grounding and Box Breath", "Grounding" in badge("selflove")["desc"] and "Box Breath" in badge("selflove")["desc"])
+    check("Stability Master desc lists Ankle Rockers", "Ankle Rockers" in badge("rock")["desc"])
+    check("Miles & Smiles desc lists Walk Backward", "Walk Backward" in badge("miles")["desc"])
+    st = ("10min Plank", "10min Wall Sit", "Single Leg Balance (10 min each leg)", "10min Hang (supported)")
+    S("/api/admin/save", {"name": st[2], "target": 20, "unit": "minutes", "phase": 2}, admin="sa")
+    S("/api/progress", {"activity_id": aid(st[2]), "amount": 20}, cookie=ck)
+    S("/api/admin/save", {"name": "2m Arms Out Ankle Rockers", "target": 1, "unit": "x", "phase": 3}, admin="sa")
+    S("/api/progress", {"activity_id": aid("10min Plank"), "amount": 1}, cookie=ck)
+    check("Stability Master locked without Ankle Rockers", not badge("rock")["got"])
+    s, j, _ = S("/api/progress", {"activity_id": aid("2m Arms Out Ankle Rockers"), "amount": 1}, cookie=ck)
+    check("Stability Master earned once Ankle Rockers done", badge("rock")["got"], j.get("newBadges"))
 finally:
     for p in procs.values(): p.terminate()
 print(f"\n{P} passed, {F} failed"); sys.exit(1 if F else 0)
