@@ -547,8 +547,8 @@ function embed(u){let m=u.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([\w
 function vbtn(a){const v=vidsFor(a.name);if(v===null)return '';if(!v.length)return '<button class="vbtn" disabled title="Video coming soon" aria-label="Video coming soon">▶</button>';
  return `<button class="vbtn" data-vid="${esc(JSON.stringify(v))}" data-vt="${esc(a.name)}" aria-label="Play video for ${esc(a.name)}">▶</button>`}
 function secBtn(p){const u=(VID.sections||{})[p];if(!u)return '';return ` <button class="vbtn" data-vid="${esc(JSON.stringify([u]))}" data-vt="${esc(PH[p][1])} intro" aria-label="Play ${esc(PH[p][1])} intro video">▶</button>`}
-function vplay(u){$('vf').innerHTML=`<iframe src="${esc(embed(u))}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>`}
-function vopen(list,t){$('vtt').textContent=t;vplay(list[0]);$('vl').innerHTML=list.length>1?list.map((u,i)=>`<button data-vi="${i}">Video ${i+1}</button>`).join(''):'';
+let VCUR='';function vplay(u){VCUR=u;const x=embed(u);$('vf').innerHTML=`<iframe src="${esc(x+(x.includes('?')?'&':'?')+'r='+Date.now())}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>`}
+function vopen(list,t){$('vtt').textContent=t;vplay(list[0]);$('vl').innerHTML=(list.length>1?list.map((u,i)=>`<button data-vi="${i}">Video ${i+1}</button>`).join(''):'')+'<button id="vre">↻ Replay</button>';$('vre').onclick=()=>vplay(VCUR);
  $('vl').querySelectorAll('[data-vi]').forEach(b=>b.onclick=()=>vplay(list[+b.dataset.vi]));$('vmod').classList.add('on')}
 function vclose(){$('vmod').classList.remove('on');$('vf').innerHTML=''}
 document.addEventListener('click',e=>{const b=e.target.closest('.vbtn[data-vid]');if(b){e.preventDefault();e.stopPropagation();vopen(JSON.parse(b.dataset.vid),b.dataset.vt);return}
