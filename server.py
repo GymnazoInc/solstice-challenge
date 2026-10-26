@@ -84,6 +84,12 @@ def migrate3(c):
         for col, ddl in (("weight_lbs","REAL"),("damper","INTEGER"),("equipment","TEXT"),("box_height_in","REAL")):
             if col not in cols: c.execute("ALTER TABLE %s ADD COLUMN %s %s" % (t, col, ddl))
 migrate3(MAIN); migrate3(BETA)
+def migrate4(c):
+    """Rename FitFighter Overhead Slam -> Med Ball Overhead Slam (name only; ids and member progress untouched)."""
+    for aid, name in c.execute("SELECT id,name FROM activities WHERE lower(name) LIKE '%fitfighter%'").fetchall():
+        c.execute("UPDATE activities SET name=? WHERE id=?", (re.sub(r"(?i)fit\s*fighter", "Med Ball", name), aid))
+    c.commit()
+migrate4(MAIN); migrate4(BETA)
 WEIGHT_KEYS = ("kettlebell squat","overhead press","overhead slam","mace","plate halo","medball","med ball","medicine ball","loaded carry")
 def extras_for(name):
     """Which optional extra inputs an activity gets, matched by name keywords."""
@@ -153,7 +159,7 @@ BADGES = [
      "names":[["ocean plunge","cold shower"],["hugs"],["truestretch"],["journal"],["supine get"],["grounding"],["box breath"]]},
     {"key":"row","label":"Row, Row, Row Your Boat","icon":"🚣","desc":"Finished the 500m, 1,000m and 2,000m rows","kind":"names",
      "names":[["500m row"],["1,000m row","1000m row"],["2,000m row","2000m row"]]},
-    {"key":"muscle","label":"Mighty Muscles","icon":"💪","desc":"Finished the Kettlebell Squat, ViPR Press and FitFighter Slam","kind":"names",
+    {"key":"muscle","label":"Mighty Muscles","icon":"💪","desc":"Finished the Kettlebell Squat, ViPR Press and Med Ball Slam","kind":"names",
      "names":[["kettlebell squat"],["overhead press"],["overhead slam"]]},
     {"key":"miles","label":"Miles & Smiles","icon":"🥾","desc":"Finished the Gymnazo Loop, Gymnazo Mile, a hike and the Loaded Carry mile","kind":"names",
      "names":[["gymnazo loop"],["gymnazo mile"],["hike"],["loaded carry"]]},
@@ -322,6 +328,8 @@ class H(http.server.BaseHTTPRequestHandler):
             h = open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"index.html"),"rb").read()
             if is_beta(): h = h.replace(b"<head>", b"<head><script>window.BETA=1</script>", 1)
             return self.send(200, h, "text/html; charset=utf-8")
+        if p == "/videos.json":
+            return self.send(200, open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"videos.json"),"rb").read(), "application/json")
         if p == "/admin":
             return self.send(200, open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"admin.html"),"rb").read(), "text/html; charset=utf-8")
         if p == "/api/me":

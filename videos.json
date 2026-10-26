@@ -1,0 +1,233 @@
+{
+ "_help": "Video links for the play buttons. To add a video, paste its Google Drive link (sharing: Anyone with the link can view) or a YouTube link into the empty \"videos\" list of the matching activity, then deploy. 'match' = words found in the activity name (case-insensitive). An empty list means no button yet.",
+ "sections": {
+  "1": "https://drive.google.com/file/d/1W-kkZukjUOBJLhzMzYpN1m_5QOgkYvuh/view",
+  "2": "https://drive.google.com/file/d/1FOjgt0nozHlE1R6oprftDX_8yzxIVmS0/view",
+  "3": "https://drive.google.com/file/d/1hfWt2VnlXwVZGtVYAE48SNQas1rAT8Vj/view"
+ },
+ "activities": [
+  {
+   "match": [
+    "row machine"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1sOJGcA0Ic_lnUXycU8R_2fG2A9YB8Cj5/view"
+   ]
+  },
+  {
+   "match": [
+    "kettlebell squat"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1BmKMlDHzrINP-pvP_Q4Th8wJNQauL0rg/view"
+   ]
+  },
+  {
+   "match": [
+    "vipr",
+    "curl overhead press"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1de_o1HPK1Dwe0EijKX12uJgMXu46CW_4/view"
+   ]
+  },
+  {
+   "match": [
+    "overhead slam"
+   ],
+   "videos": []
+  },
+  {
+   "match": [
+    "gymnazo loop"
+   ],
+   "videos": []
+  },
+  {
+   "match": [
+    "gymnazo mile"
+   ],
+   "videos": []
+  },
+  {
+   "match": [
+    "truestretch"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1nyEqIXq0EaB96qzHVyHGp0m60QMXHFtL/view"
+   ]
+  },
+  {
+   "match": [
+    "rope flow"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1n3irAeOR7GCVYONfDunv911BUYGBTef8/view"
+   ]
+  },
+  {
+   "match": [
+    "plank"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1zte24uUqGfWSS0eN_gRoSKQN9o89KDpH/view"
+   ]
+  },
+  {
+   "match": [
+    "wall sit"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/12ZXJjXDrrU8o8fPwsMhu9v3LE-MveNdC/view"
+   ]
+  },
+  {
+   "match": [
+    "single leg balance"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/18OAHVBLPY0lw_kF5Jg2KLdoIRzoQc3t4/view"
+   ]
+  },
+  {
+   "match": [
+    "min hang",
+    "hang (supported)"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1NIOKU4-kzcZX_6qE3Jfgr2zG-ditjdqm/view"
+   ]
+  },
+  {
+   "match": [
+    "supine get"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1GjzhZ6bfYhDLNR0sr_Fp_-FKSuRIMybl/view"
+   ]
+  },
+  {
+   "match": [
+    "calf raise",
+    "1,000 jumps",
+    "1000 jumps"
+   ],
+   "videos": []
+  },
+  {
+   "match": [
+    "loaded carry"
+   ],
+   "videos": []
+  },
+  {
+   "match": [
+    "box jump",
+    "box step"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1frG7yUt-hZIYJfewEIqnedR8hX9db5jf/view"
+   ]
+  },
+  {
+   "match": [
+    "ball throw"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1tpp5PgyYVf-8KoCuVHj5EQedt2jpYxdR/view"
+   ]
+  },
+  {
+   "match": [
+    "mace",
+    "plate halo"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1gBliGYnU1Ej_uxnh00wxbpG4xbhD_NL7/view"
+   ]
+  },
+  {
+   "match": [
+    "ankle rocker"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1Vuj2iu2e90uZGcAzi5_D9Abz7ym0FLE4/view"
+   ]
+  },
+  {
+   "match": [
+    "grounding"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1nXrOXJIhiJh1PoO27mIt2Klpyn__64Nd/view"
+   ]
+  },
+  {
+   "match": [
+    "deep squat"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1e2-RmhJsWwMrogIZIcBjVuuYp2mFkiTA/view"
+   ]
+  },
+  {
+   "match": [
+    "box breath"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1XYkny_j440p7xgFBbIbj9mZ0pOV9MdC5/view"
+   ]
+  },
+  {
+   "match": [
+    "walk backward"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1oE-ihO_CAWQK-9A3OKJhXGthWmZi691j/view"
+   ]
+  },
+  {
+   "match": [
+    "journal"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1YLyh-22wlRzN6mBe97vdY9kqrYcDyPwS/view"
+   ]
+  },
+  {
+   "match": [
+    "lunge matrix"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1z-ofknw4Wqz_XlwRy0LHu4RpoL_waZtj/view",
+    "https://youtu.be/MPE-7iob2Us"
+   ]
+  },
+  {
+   "match": [
+    "hugs"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1qKNtuADencQITYzFqq-YBuC8ZBoMaimD/view"
+   ]
+  },
+  {
+   "match": [
+    "ocean plunge",
+    "cold shower"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1jBW_kdfR8P8CJ6wcfItTlwQATPD5zDCY/view"
+   ]
+  },
+  {
+   "match": [
+    "hike",
+    "walk trail"
+   ],
+   "videos": [
+    "https://drive.google.com/file/d/1gwdtlEhTzf4LaPGp6vSGgViCoSHsQlvy/view"
+   ]
+  }
+ ]
+}

@@ -171,7 +171,7 @@ try:
     sl = [b for b in me()["badgeList"] if b["key"] == "selflove"][0]
     check("Self Love desc mentions Supine Get-ups", "Supine Get-ups" in sl["desc"] and not sl["got"], sl)
     # ---- Strong Arms: medicine ball throw matches MedBall / Med Ball / Medicine Ball (any case)
-    for nm in ("100 FitFighter Overhead Slam", "100 ViPR Curl Overhead Press", "1,000 MACE 360/Plate Halo"):
+    for nm in ("100 Med Ball Overhead Slam", "100 ViPR Curl Overhead Press", "1,000 MACE 360/Plate Halo"):
         S("/api/admin/save", {"name": nm, "target": 1, "unit": "reps", "phase": 1}, admin="sa")
         S("/api/progress", {"activity_id": aid(nm), "amount": 1}, cookie=ck)
     S("/api/admin/save", {"name": "1,000 Medicine Ball Throw", "target": 1, "unit": "reps", "phase": 2}, admin="sa")
@@ -210,7 +210,7 @@ try:
     S("/api/admin/save", {"name": "1,000 Med Ball Throw X", "target": 100, "unit": "reps", "phase": 1}, admin="sa")
     ex = {a["name"]: a.get("extras") for a in me()["activities"]}
     check("extras matched by name", ex["500m Row Machine"] == ["damper"] and ex["100 Kettlebell Squat"] == ["weight"] and ex["Loaded Carry Test"] == ["equipment", "weight"]
-          and ex["1,000 Med Ball Throw X"] == ["weight"] and ex["100 FitFighter Overhead Slam"] == ["weight"] and ex["1,000 MACE 360/Plate Halo"] == ["weight"]
+          and ex["1,000 Med Ball Throw X"] == ["weight"] and ex["100 Med Ball Overhead Slam"] == ["weight"] and ex["1,000 MACE 360/Plate Halo"] == ["weight"]
           and ex["100 ViPR Curl Overhead Press"] == ["weight"] and ex["10min Plank"] == [], ex)
     row = aid("500m Row Machine")
     s, j, _ = S("/api/result", {"activity_id": row, "minutes": 2, "seconds": 5, "damper": 11}, cookie=ck); check("damper 11 rejected", s == 400)
