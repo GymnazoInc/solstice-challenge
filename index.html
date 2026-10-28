@@ -180,7 +180,6 @@ button.pulse{animation:pulse 2s ease-in-out infinite}
 <div id="app" class="hide">
 <div class="card"><div class="hello"><h2 id="hi"></h2><button class="ghost" id="out">Log out</button></div>
 <div id="pre" class="banner"></div></div>
-<div class="card" id="nutcard"><h2>My Nutrition 🥗</h2><div class="small">Set up your nutrition profile to see estimated calories, protein and water.</div><a id="nutlink" href="/nutrition" style="display:block;margin-top:10px;color:var(--cream);font-weight:700;font-size:20px">Open my nutrition profile &rarr;</a></div>
 
 <div class="card cream" id="checkcard"><h2 id="dayTitle">Today</h2>
 <div class="done-msg hide" id="doneMsg">✅ You did it! Great job!</div>
@@ -555,5 +554,4 @@ function vclose(){$('vmod').classList.remove('on');$('vf').innerHTML=''}
 document.addEventListener('click',e=>{const b=e.target.closest('.vbtn[data-vid]');if(b){e.preventDefault();e.stopPropagation();vopen(JSON.parse(b.dataset.vid),b.dataset.vt);return}
  if(e.target.id==='vx'||e.target.id==='vmod')vclose()},true);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')vclose()});
-</script><script>if(window.BETA)document.getElementById("nutlink").href="/beta/nutrition"</script>
-</body></html>
+</script></body></html>

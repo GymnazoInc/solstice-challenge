@@ -1,4 +1,4 @@
-import federation, nutrition, csv, io, http.server, socketserver, sqlite3, json, hashlib, hmac, secrets, os, time, re
+import federation, csv, io, http.server, socketserver, sqlite3, json, hashlib, hmac, secrets, os, time, re
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 TZ = ZoneInfo("America/Los_Angeles")
@@ -90,10 +90,6 @@ def migrate4(c):
         c.execute("UPDATE activities SET name=? WHERE id=?", (re.sub(r"(?i)fit\s*fighter", "Med Ball", name), aid))
     c.commit()
 migrate4(MAIN); migrate4(BETA)
-def migrate5(c):
-    """Nutrition profiles: a new table only (one JSON row per member); nothing existing is touched."""
-    c.execute("CREATE TABLE IF NOT EXISTS nutrition_profiles(user_id INTEGER PRIMARY KEY, data TEXT, created REAL, updated REAL)")
-migrate5(MAIN); migrate5(BETA)
 WEIGHT_KEYS = ("kettlebell squat","overhead press","overhead slam","mace","plate halo","medball","med ball","medicine ball","loaded carry")
 def extras_for(name):
     """Which optional extra inputs an activity gets, matched by name keywords."""
@@ -127,7 +123,7 @@ def parse_extras(name, b):
     return (wt, dm, eq, bh)
 def extras_text(wt, dm, eq, bh=None):
     return "; ".join(filter(None, [("%g lbs" % wt) if wt else "", ("damper %d" % dm) if dm else "", eq or "", ('box %g in' % bh) if bh else ""]))
-BETA_TABLES = ("nutrition_profiles","admin_audit","badges","users","sessions","checkins","wins","progress","user_activities","user_picks","comments","reactions","results","repeats")
+BETA_TABLES = ("admin_audit","badges","users","sessions","checkins","wins","progress","user_activities","user_picks","comments","reactions","results","repeats")
 def beta_sync_activities():
     """Beta uses the same activity list as the real challenge (copied from the main DB, same ids)."""
     rows = MAIN.execute("SELECT id,name,target,unit,sort,active,phase,kind,record_type,repeat_count,decimals FROM activities").fetchall()
@@ -261,13 +257,6 @@ def activities_for(uid):
                     "log":([{"amount":x[0],"date":fdate(x[1]),"weight_lbs":x[2],"damper":x[3],"equipment":x[4],"box_height_in":x[5]} for x in db.execute("SELECT amount,created,weight_lbs,damper,equipment,box_height_in FROM progress WHERE user_id=? AND activity_id=? ORDER BY id DESC LIMIT 10", (uid,aid))] if ex else [])})
     return out
 
-def nutrition_payload(uid):
-    r = db.execute("SELECT data,updated FROM nutrition_profiles WHERE user_id=?", (uid,)).fetchone()
-    if not r: return {"profile":None, "results":None, "disclaimer":nutrition.DISCLAIMER}
-    prof = json.loads(r[0])
-    try: res = nutrition.calculate(prof)
-    except Exception: res = None
-    return {"profile":prof, "results":res, "updated":fdate(r[1]), "disclaimer":nutrition.DISCLAIMER}
 def me_payload(u):
     s = stats(u[0])
     acts = activities_for(u[0])
@@ -341,13 +330,6 @@ class H(http.server.BaseHTTPRequestHandler):
             return self.send(200, h, "text/html; charset=utf-8")
         if p == "/videos.json":
             return self.send(200, open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"videos.json"),"rb").read(), "application/json")
-        if p == "/nutrition":
-            h = open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"nutrition.html"),"rb").read()
-            if is_beta(): h = h.replace(b"<head>", b"<head><script>window.BETA=1</script>", 1)
-            return self.send(200, h, "text/html; charset=utf-8")
-        if p == "/api/nutrition":
-            u = user_from(self)
-            return self.send(200, nutrition_payload(u[0])) if u else self.send(401, {"error":"auth"})
         if p == "/admin":
             return self.send(200, open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"admin.html"),"rb").read(), "text/html; charset=utf-8")
         if p == "/api/me":
@@ -392,7 +374,6 @@ class H(http.server.BaseHTTPRequestHandler):
             if p == "/api/progress": return self.log_progress(u, b)
             if p == "/api/progress/undo": return self.undo_progress(u, b)
             if p == "/api/checkin": return self.checkin(u, b)
-            if p == "/api/nutrition": return self.save_nutrition(u, b)
         self.send(404, {"error":"nf"})
     def _parse(self, b):
         name = re.sub(r"\s+"," ", str(b.get("name","")).strip())[:24]
@@ -738,7 +719,7 @@ class H(http.server.BaseHTTPRequestHandler):
             if str(b.get("confirm","")).strip().casefold() != r[0].casefold(): return self.send(400, {"error":"Type the member's name exactly to confirm."})
             db.execute("DELETE FROM reactions WHERE user_id=? OR comment_id IN (SELECT id FROM comments WHERE user_id=?)", (uid,uid))
             db.execute("CREATE TABLE IF NOT EXISTS admin_audit(ts REAL, user_id INTEGER, action TEXT, detail TEXT)")
-            for t in ("nutrition_profiles","admin_audit","sessions","checkins","wins","badges","progress","user_activities","user_picks","comments","results","repeats"):
+            for t in ("admin_audit","sessions","checkins","wins","badges","progress","user_activities","user_picks","comments","results","repeats"):
                 db.execute("DELETE FROM %s WHERE user_id=?" % t, (uid,))
             db.execute("DELETE FROM users WHERE id=?", (uid,))
             return self.send(200, {"deleted":True, **member_rows()})
@@ -849,12 +830,6 @@ class H(http.server.BaseHTTPRequestHandler):
                 "checkins":[r[0] for r in db.execute("SELECT day FROM checkins WHERE user_id=? ORDER BY day", (uid,))],
                 "badges":[BADGE[r[0]]["label"] for r in db.execute("SELECT key FROM badges WHERE user_id=? ORDER BY created", (uid,)) if r[0] in BADGE],
                 "audit":[{"at":fdate(r[0]),"detail":r[1]} for r in db.execute("SELECT ts,detail FROM admin_audit WHERE user_id=? ORDER BY ts DESC LIMIT 15", (uid,))]}
-    def save_nutrition(self, u, b):
-        prof, err = nutrition.clean(b)
-        if err: return self.send(400, {"error":" ".join(err[:3]), "errors":err})
-        now = time.time()
-        db.execute("INSERT INTO nutrition_profiles(user_id,data,created,updated) VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data,updated=excluded.updated", (u[0], json.dumps(prof), now, now))
-        self.send(200, nutrition_payload(u[0]))
     def checkin(self, u, b):
         try: d = date.fromisoformat(str(b.get("date")))
         except Exception: return self.send(400, {"error":"bad date"})
